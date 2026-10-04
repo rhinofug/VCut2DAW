@@ -1,6 +1,6 @@
 scenedetect
 opencv-python
-pyaaf2
+pyaaf2==1.4.0
 mido
 customtkinter
 Pillow
