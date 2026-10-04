@@ -165,18 +165,6 @@ def parse_timecode_to_frames(tc_str, fps):
     return 0
 
 def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb):
-    """
-    Parses a SceneDetect CSV file to generate Pro Tools compliant MIDI markers 
-    and a framerate-accurate AAF Clip Track.
-    
-    Args:
-        csv_path (str): Absolute path to the SceneDetect CSV.
-        midi_path (str): Absolute path where the MIDI file should be saved.
-        aaf_path (str): Absolute path where the AAF file should be saved.
-        tc_string (str): User-provided session start timecode (e.g., '01:00:00:00').
-        log_cb (function): Callback function for logging messages to the UI.
-        done_cb (function): Callback function executed when generation completes or fails.
-    """
     try:
         log_cb(f"Reading scenes from {os.path.basename(csv_path)}...")
         scenes = []
@@ -202,7 +190,7 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
                                 in_frames = parse_timecode_to_frames(rec_in, fps)
                                 out_frames = parse_timecode_to_frames(rec_out, fps)
                                 length = out_frames - in_frames
-                                raw_scenes.append([in_frames, length, f"Scene {scene_count}"])
+                                raw_scenes.append([in_frames, length, f"VCut {scene_count}"])
                                 scene_count += 1
                             except:
                                 pass
@@ -223,7 +211,7 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
                         scene_num = int(row[0])
                         start_frame = int(row[1])
                         length = int(row[7])
-                        raw_scenes.append([start_frame, length, f"Scene {scene_num}"])
+                        raw_scenes.append([start_frame, length, f"VCut {scene_num}"])
                     except: continue
 
         if not raw_scenes:
@@ -244,7 +232,8 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
                 length = next_frame - frame
             else:
                 length = raw_scenes[i][1] # Keep original length for the very last scene
-            scenes.append((frame, length, name))
+            if length > 0:
+                scenes.append((frame, length, name))
 
         log_cb(f"Found {len(scenes)} scenes. Video Framerate: {fps}")
         
@@ -259,7 +248,7 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
         mid.tracks.append(track)
         
         # Secret Watermark
-        track.append(MetaMessage('text', text='VCut2DAW (c) Antigravity', time=0))
+        track.append(MetaMessage('text', text='VCut2ProTools (c) Antigravity', time=0))
         
         # We assume Pro Tools default 120 BPM (500000 microseconds per beat) 
         # so the offset scales correctly without needing tempo map import!
@@ -286,17 +275,17 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
         import aaf2
         
         edit_rate = int(fps) if isinstance(fps, float) and fps.is_integer() else fps
-        if edit_rate == 23.976: edit_rate = aaf2.rational.AAFRational(24000, 1001)
-        elif edit_rate == 29.97: edit_rate = aaf2.rational.AAFRational(30000, 1001)
+        if abs(fps - 23.976) < 0.001: edit_rate = aaf2.rational.AAFRational(24000, 1001)
+        elif abs(fps - 29.97) < 0.001: edit_rate = aaf2.rational.AAFRational(30000, 1001)
 
         with aaf2.open(aaf_path, "w") as f:
             # 1. Source Mob (Represents physical missing file)
-            source_mob = f.create.SourceMob("VCut2DAW")
+            source_mob = f.create.SourceMob("Dummy_Audio_File")
             f.content.mobs.append(source_mob)
             
             descriptor = f.create.PCMDescriptor()
             locator = f.create.NetworkLocator()
-            locator['URLString'].value = "file:///vcut2daw.wav"
+            locator['URLString'].value = "file:///dummy_scene_audio.wav"
             descriptor.locator.append(locator)
             descriptor['SampleRate'].value = 48000
             descriptor['AudioSamplingRate'].value = 48000
@@ -326,7 +315,7 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
             src_tc_slot.segment = src_tc_clip
             
             # 2. Master Mob (Represents imported clip)
-            master_mob = f.create.MasterMob("VCut2DAW")
+            master_mob = f.create.MasterMob("Scene_Clips_Master")
             f.content.mobs.append(master_mob)
             master_slot = master_mob.create_sound_slot(edit_rate=edit_rate)
             master_clip = source_mob.create_source_clip(slot_id=source_slot.slot_id, start=0, length=total_frames)
@@ -339,7 +328,7 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
             tc_slot.segment = tc_clip
             
             # 3. Composition Mob (The Timeline/Track)
-            comp_mob = f.create.CompositionMob("VCut2DAW Timeline")
+            comp_mob = f.create.CompositionMob("Scene Cuts Timeline")
             f.content.mobs.append(comp_mob)
             comp_slot = comp_mob.create_sound_slot(edit_rate=edit_rate)
             
