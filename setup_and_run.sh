@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Starting VCut2ProTools Setup for macOS/Linux..."
+echo "Starting VCut2DAW Setup for macOS/Linux..."
 
 # Check if python3 is installed
 if ! command -v python3 &> /dev/null
@@ -24,5 +24,5 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # Run the app
-echo "Starting VCut2ProTools..."
+echo "Starting VCut2DAW..."
 python app.py

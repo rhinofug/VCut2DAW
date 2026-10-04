@@ -2,3 +2,5 @@ scenedetect
 opencv-python
 pyaaf2
 mido
+customtkinter
+Pillow

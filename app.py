@@ -1,8 +1,12 @@
-﻿import os
+﻿__version__ = "1.0.0"
+import os
 import subprocess
 import sys
 import threading
 import tkinter as tk
+import customtkinter as ctk
+ctk.set_appearance_mode("Dark")
+ctk.set_default_color_theme("blue")
 from tkinter import filedialog, messagebox
 from tkinter.scrolledtext import ScrolledText
 import csv
@@ -17,10 +21,10 @@ else:
 DEFAULT_OUT_DIR = os.path.join(APP_DIR, "VCut_Exports")
 
 def log_message(msg):
-    log_area.config(state=tk.NORMAL)
+    log_area.configure(state="normal")
     log_area.insert(tk.END, msg + "\n")
     log_area.see(tk.END)
-    log_area.config(state=tk.DISABLED)
+    log_area.configure(state="disabled")
 
 def select_video_file():
     filepath = filedialog.askopenfilename(
@@ -41,6 +45,12 @@ def select_csv_file():
         csv_entry.delete(0, tk.END)
         csv_entry.insert(0, filepath)
         log_message(f"Selected CSV/EDL: {filepath}")
+        
+        base_name = os.path.splitext(os.path.basename(filepath))[0]
+        if base_name.endswith("-Scenes"):
+            base_name = base_name.replace("-Scenes", "")
+        proj_name_entry.delete(0, tk.END)
+        proj_name_entry.insert(0, base_name)
 
 class RedirectStdout:
     def __init__(self, log_cb):
@@ -52,6 +62,17 @@ class RedirectStdout:
         pass
 
 def run_step1_process(video_path, csv_out_dir, success_msg, expected_csv):
+    global _auto_proceed_step2
+    """
+    Analyzes a video file to detect scene cuts and exports a CSV file.
+    Uses PySceneDetect with adaptive content detection.
+    
+    Args:
+        video_path (str): Absolute path to the input video file.
+        csv_out_dir (str): Absolute directory path where the CSV should be saved.
+        success_msg (str): Message to display upon success.
+        expected_csv (str): The expected output path of the CSV file.
+    """
     try:
         log_area.after(0, log_message, f"Running PySceneDetect in-process on: {video_path}")
         
@@ -73,14 +94,27 @@ def run_step1_process(video_path, csv_out_dir, success_msg, expected_csv):
             if os.path.exists(expected_csv):
                 csv_entry.after(0, lambda: csv_entry.delete(0, tk.END))
                 csv_entry.after(0, lambda: csv_entry.insert(0, expected_csv))
-            messagebox.showinfo("Success", success_msg)
+            
+            if _auto_proceed_step2:
+                _auto_proceed_step2 = False
+                log_area.after(100, lambda: log_message(">>> Auto-Proceeding to Step 2..."))
+                btn_convert.after(500, start_convert)
+            else:
+                messagebox.showinfo("Success", success_msg)
         except SystemExit as e:
             if e.code == 0:
                 log_area.after(0, log_message, success_msg)
                 if os.path.exists(expected_csv):
                     csv_entry.after(0, lambda: csv_entry.delete(0, tk.END))
                     csv_entry.after(0, lambda: csv_entry.insert(0, expected_csv))
-                messagebox.showinfo("Success", success_msg)
+                
+                
+                if _auto_proceed_step2:
+                    _auto_proceed_step2 = False
+                    log_area.after(100, log_message, ">>> Auto-Proceeding to Step 2...")
+                    btn_convert.after(500, start_convert)
+                else:
+                    messagebox.showinfo("Success", success_msg)
             else:
                 log_area.after(0, log_message, f"PROCESS EXITED WITH CODE: {e.code}")
         finally:
@@ -92,8 +126,8 @@ def run_step1_process(video_path, csv_out_dir, success_msg, expected_csv):
         log_area.after(0, log_message, f"EXCEPTION: {str(e)}")
         messagebox.showerror("Error", str(e))
     finally:
-        btn_detect.config(state=tk.NORMAL)
-        btn_convert.config(state=tk.NORMAL)
+        btn_detect.configure(state="normal")
+        btn_convert.configure(state="normal")
 
 def start_detect():
     video_path = video_entry.get()
@@ -108,8 +142,8 @@ def start_detect():
     csv_out_dir = os.path.join(out_base, "CSV")
     os.makedirs(csv_out_dir, exist_ok=True)
 
-    btn_detect.config(state=tk.DISABLED)
-    btn_convert.config(state=tk.DISABLED)
+    btn_detect.configure(state="disabled")
+    btn_convert.configure(state="disabled")
     
     video_filename = os.path.basename(video_path)
     video_name_no_ext = os.path.splitext(video_filename)[0]
@@ -131,6 +165,18 @@ def parse_timecode_to_frames(tc_str, fps):
     return 0
 
 def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb):
+    """
+    Parses a SceneDetect CSV file to generate Pro Tools compliant MIDI markers 
+    and a framerate-accurate AAF Clip Track.
+    
+    Args:
+        csv_path (str): Absolute path to the SceneDetect CSV.
+        midi_path (str): Absolute path where the MIDI file should be saved.
+        aaf_path (str): Absolute path where the AAF file should be saved.
+        tc_string (str): User-provided session start timecode (e.g., '01:00:00:00').
+        log_cb (function): Callback function for logging messages to the UI.
+        done_cb (function): Callback function executed when generation completes or fails.
+    """
     try:
         log_cb(f"Reading scenes from {os.path.basename(csv_path)}...")
         scenes = []
@@ -213,7 +259,7 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
         mid.tracks.append(track)
         
         # Secret Watermark
-        track.append(MetaMessage('text', text='VCut2ProTools (c) Antigravity', time=0))
+        track.append(MetaMessage('text', text='VCut2DAW (c) Antigravity', time=0))
         
         # We assume Pro Tools default 120 BPM (500000 microseconds per beat) 
         # so the offset scales correctly without needing tempo map import!
@@ -245,12 +291,12 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
 
         with aaf2.open(aaf_path, "w") as f:
             # 1. Source Mob (Represents physical missing file)
-            source_mob = f.create.SourceMob("Dummy_Audio_File")
+            source_mob = f.create.SourceMob("VCut2DAW")
             f.content.mobs.append(source_mob)
             
             descriptor = f.create.PCMDescriptor()
             locator = f.create.NetworkLocator()
-            locator['URLString'].value = "file:///dummy_scene_audio.wav"
+            locator['URLString'].value = "file:///vcut2daw.wav"
             descriptor.locator.append(locator)
             descriptor['SampleRate'].value = 48000
             descriptor['AudioSamplingRate'].value = 48000
@@ -280,7 +326,7 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
             src_tc_slot.segment = src_tc_clip
             
             # 2. Master Mob (Represents imported clip)
-            master_mob = f.create.MasterMob("Scene_Clips_Master")
+            master_mob = f.create.MasterMob("VCut2DAW")
             f.content.mobs.append(master_mob)
             master_slot = master_mob.create_sound_slot(edit_rate=edit_rate)
             master_clip = source_mob.create_source_clip(slot_id=source_slot.slot_id, start=0, length=total_frames)
@@ -293,7 +339,7 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
             tc_slot.segment = tc_clip
             
             # 3. Composition Mob (The Timeline/Track)
-            comp_mob = f.create.CompositionMob("Scene Cuts Timeline")
+            comp_mob = f.create.CompositionMob("VCut2DAW Timeline")
             f.content.mobs.append(comp_mob)
             comp_slot = comp_mob.create_sound_slot(edit_rate=edit_rate)
             
@@ -329,8 +375,8 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
         done_cb(err_msg, False)
 
 def on_step2_done(msg, success):
-    btn_detect.config(state=tk.NORMAL)
-    btn_convert.config(state=tk.NORMAL)
+    btn_detect.configure(state="normal")
+    btn_convert.configure(state="normal")
     if success:
         messagebox.showinfo("Success", msg)
     else:
@@ -355,58 +401,84 @@ def start_convert():
     os.makedirs(midi_out_dir, exist_ok=True)
     os.makedirs(aaf_out_dir, exist_ok=True)
 
-    csv_filename = os.path.basename(csv_path)
-    base_name = os.path.splitext(csv_filename)[0]
-    
-    if base_name.endswith("-Scenes"):
-        base_name = base_name.replace("-Scenes", "")
-        
-    output_midi = os.path.join(midi_out_dir, f"{base_name}_Markers.mid")
-    output_aaf = os.path.join(aaf_out_dir, f"{base_name}_ClipTrack.aaf")
+    proj_name = proj_name_entry.get().strip()
+    if not proj_name:
+        csv_filename = os.path.basename(csv_path)
+        proj_name = os.path.splitext(csv_filename)[0]
+        if proj_name.endswith("-Scenes"):
+            proj_name = proj_name.replace("-Scenes", "")
+            
+    output_midi = os.path.join(midi_out_dir, f"{proj_name}_Markers.mid")
+    output_aaf = os.path.join(aaf_out_dir, f"{proj_name}_ClipTrack.aaf")
 
-    btn_detect.config(state=tk.DISABLED)
-    btn_convert.config(state=tk.DISABLED)
+    btn_detect.configure(state="disabled")
+    btn_convert.configure(state="disabled")
     
     def cb_log(m): log_area.after(0, log_message, m)
     def cb_done(m, s): log_area.after(0, lambda: on_step2_done(m, s))
     
     threading.Thread(target=run_step2_process, args=(csv_path, output_midi, output_aaf, tc_string, cb_log, cb_done), daemon=True).start()
 
+
+def start_full_run():
+    global _auto_proceed_step2
+    
+    _auto_proceed_step2 = True
+    start_detect()
+
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
 # --- GUI Setup ---
-root = tk.Tk()
-root.title("VCut2ProTools - Open Source Conform Assistant | by F.Utku Gercik")
-root.geometry("650x620")
+
+
+root = ctk.CTk()
+root.title("VCut2DAW - Video to Scene Markers on ProTools | by F.Utku Gercik")
+root.geometry("680x680")
 root.resizable(True, True)
+
+try:
+    root.iconbitmap(resource_path("icon.ico"))
+except:
+    pass
 
 def show_about():
     about_text = (
-        "VCut2ProTools v1.0\n"
-        "An Open Source Conform Assistant for Pro Tools\n\n"
+        "VCut2DAW v1.0\n"
+        "An Video to Scene Markers on ProTools for Pro Tools\n\n"
         "Developed by: F.Utku Gercik\n"
         "Email: utkugercik@gmail.com\n"
-        "GitHub: https://github.com/rhinofug/VCut2ProTools\n\n"
+        "GitHub: https://github.com/rhinofug/VCut2DAW\n\n"
         "License: CC BY-NC 4.0 (Non-Commercial)\n"
         "(c) 2026 - Built with Antigravity"
     )
-    messagebox.showinfo("About VCut2ProTools", about_text)
+    messagebox.showinfo("About VCut2DAW", about_text)
 
-menubar = tk.Menu(root)
-help_menu = tk.Menu(menubar, tearoff=0)
-help_menu.add_command(label="About / Credits", command=show_about)
-menubar.add_cascade(label="Help", menu=help_menu)
-root.config(menu=menubar)
 
-frame = tk.Frame(root, padx=20, pady=20)
-frame.pack(fill=tk.BOTH, expand=True)
+
+frame = ctk.CTkFrame(root, corner_radius=10)
+frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 
 # ---- OUTPUT DIRECTORY SECTION ----
-out_frame = tk.LabelFrame(frame, text=" Global Output Folder (Where files will be saved) ", padx=10, pady=10)
-out_frame.pack(fill=tk.X, pady=(0, 10))
+out_frame = ctk.CTkFrame(frame, corner_radius=8)
+out_frame.pack(fill=tk.X, padx=10, pady=(10, 10))
 
-out_file_frame = tk.Frame(out_frame)
-out_file_frame.pack(fill=tk.X, pady=5)
+ctk.CTkLabel(out_frame, text="Global Output Folder & Project Prefix", font=("Arial", 14, "bold")).pack(anchor="w", padx=10, pady=(10, 0))
 
-output_entry = tk.Entry(out_file_frame)
+out_file_frame = ctk.CTkFrame(out_frame, fg_color="transparent")
+out_file_frame.pack(fill=tk.X, padx=10, pady=5)
+
+proj_name_frame = ctk.CTkFrame(out_frame, fg_color="transparent")
+proj_name_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+ctk.CTkLabel(proj_name_frame, text="Project / Output Prefix:").pack(side=tk.LEFT)
+proj_name_entry = ctk.CTkEntry(proj_name_frame, placeholder_text="Default: Auto from Video/CSV")
+proj_name_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
+
+output_entry = ctk.CTkEntry(out_file_frame)
 output_entry.insert(0, DEFAULT_OUT_DIR)
 output_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
 
@@ -417,61 +489,74 @@ def select_output_dir():
         output_entry.insert(0, dirpath)
         log_message(f"Output folder set to: {dirpath}")
 
-out_browse_btn = tk.Button(out_file_frame, text="Browse Folder...", command=select_output_dir)
+out_browse_btn = ctk.CTkButton(out_file_frame, text="Browse Folder...", command=select_output_dir, width=120)
 out_browse_btn.pack(side=tk.RIGHT)
 
 # ---- STEP 1 SECTION ----
-step1_frame = tk.LabelFrame(frame, text=" Phase 1: Video Analysis (Creates CSV) ", padx=10, pady=10)
-step1_frame.pack(fill=tk.X, pady=(0, 10))
+step1_frame = ctk.CTkFrame(frame, corner_radius=8)
+step1_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
 
-video_file_frame = tk.Frame(step1_frame)
-video_file_frame.pack(fill=tk.X, pady=5)
+ctk.CTkLabel(step1_frame, text="Phase 1: Video Analysis (Creates CSV)", font=("Arial", 14, "bold")).pack(anchor="w", padx=10, pady=(10, 0))
 
-video_entry = tk.Entry(video_file_frame)
+video_file_frame = ctk.CTkFrame(step1_frame, fg_color="transparent")
+video_file_frame.pack(fill=tk.X, padx=10, pady=5)
+
+video_entry = ctk.CTkEntry(video_file_frame)
 video_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
 
-video_browse_btn = tk.Button(video_file_frame, text="Browse Video...", command=select_video_file)
+video_browse_btn = ctk.CTkButton(video_file_frame, text="Browse Video...", command=select_video_file, width=120)
 video_browse_btn.pack(side=tk.RIGHT)
 
-btn_detect = tk.Button(step1_frame, text="Step 1: Detect Scenes", command=start_detect, bg="#2196F3", fg="white", font=("Arial", 9, "bold"), height=2)
-btn_detect.pack(fill=tk.X, pady=(5, 0))
+btn_detect = ctk.CTkButton(step1_frame, text="Step 1: Detect Scenes", command=start_detect, fg_color="#2196F3", hover_color="#1976D2", font=("Arial", 14, "bold"), height=40)
+btn_detect.pack(fill=tk.X, padx=10, pady=(5, 10))
 
 
 # ---- STEP 2 SECTION ----
-step2_frame = tk.LabelFrame(frame, text=" Phase 2: Convert to Pro Tools (Creates MIDI & AAF) ", padx=10, pady=10)
-step2_frame.pack(fill=tk.X, pady=(0, 10))
+step2_frame = ctk.CTkFrame(frame, corner_radius=8)
+step2_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
 
-csv_file_frame = tk.Frame(step2_frame)
-csv_file_frame.pack(fill=tk.X, pady=5)
+ctk.CTkLabel(step2_frame, text="Phase 2: Convert to Pro Tools (Creates MIDI & AAF)", font=("Arial", 14, "bold")).pack(anchor="w", padx=10, pady=(10, 0))
 
-csv_entry = tk.Entry(csv_file_frame)
+csv_file_frame = ctk.CTkFrame(step2_frame, fg_color="transparent")
+csv_file_frame.pack(fill=tk.X, padx=10, pady=5)
+
+csv_entry = ctk.CTkEntry(csv_file_frame)
 csv_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
 
-csv_browse_btn = tk.Button(csv_file_frame, text="Browse CSV...", command=select_csv_file)
+csv_browse_btn = ctk.CTkButton(csv_file_frame, text="Browse CSV...", command=select_csv_file, width=120)
 csv_browse_btn.pack(side=tk.RIGHT)
 
-tc_frame = tk.Frame(step2_frame)
-tc_frame.pack(fill=tk.X, pady=5)
-tc_label = tk.Label(tc_frame, text="Session Start Timecode (e.g. 01:00:00:00):")
+tc_frame = ctk.CTkFrame(step2_frame, fg_color="transparent")
+tc_frame.pack(fill=tk.X, padx=10, pady=5)
+tc_label = ctk.CTkLabel(tc_frame, text="Session Start Timecode (e.g. 01:00:00:00):")
 tc_label.pack(side=tk.LEFT)
-tc_entry = tk.Entry(tc_frame, width=15, justify="center")
+tc_entry = ctk.CTkEntry(tc_frame, width=150, justify="center")
 tc_entry.insert(0, "01:00:00:00")
 tc_entry.pack(side=tk.LEFT, padx=10)
 
-btn_convert = tk.Button(step2_frame, text="Step 2: Generate MIDI & AAF", command=start_convert, bg="#4CAF50", fg="white", font=("Arial", 9, "bold"), height=2)
-btn_convert.pack(fill=tk.X, pady=(5, 0))
+btn_convert = ctk.CTkButton(step2_frame, text="Step 2: Generate MIDI & AAF", command=start_convert, fg_color="#2196F3", hover_color="#1976D2", font=("Arial", 14, "bold"), height=40)
+btn_convert.pack(fill=tk.X, padx=10, pady=(5, 10))
 
+
+
+# ---- FULL RUN SECTION ----
+full_run_frame = ctk.CTkFrame(frame, fg_color="transparent")
+full_run_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+
+btn_full_run = ctk.CTkButton(full_run_frame, text="Video to Markers (Full Run)", command=start_full_run, fg_color="#4CAF50", hover_color="#388E3C", font=("Arial", 16, "bold"), height=50)
+btn_full_run.pack(fill=tk.X)
 
 # ---- CONSOLE ----
-log_label = tk.Label(frame, text="Console Output:")
-log_label.pack(anchor="w", pady=(5, 0))
 
-log_area = ScrolledText(frame, height=10, state=tk.DISABLED, bg="#f4f4f4")
-log_area.pack(fill=tk.BOTH, expand=True, pady=5)
+log_label = ctk.CTkLabel(frame, text="Console Output:", font=("Arial", 12, "bold"))
+log_label.pack(anchor="w", padx=10, pady=(5, 0))
 
-footer = tk.Label(frame, text="Developed by F.Utku Gercik | VCut2ProTools v1.0 | License: CC BY-NC 4.0", fg="gray", font=("Arial", 8))
+log_area = ctk.CTkTextbox(frame, height=120, state="disabled", fg_color="#1e1e1e", text_color="#00ff00", font=("Consolas", 12))
+log_area.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+footer = ctk.CTkLabel(frame, text="Developed by F.Utku Gercik | VCut2DAW v1.0 | License: CC BY-NC 4.0 | ?? Click for About", text_color="gray", font=("Arial", 10), cursor="hand2")
 footer.pack(side=tk.BOTTOM, pady=(10, 0))
+footer.bind("<Button-1>", lambda e: show_about())
 
 if __name__ == "__main__":
     root.mainloop()
-
