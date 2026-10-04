@@ -280,12 +280,12 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
 
         with aaf2.open(aaf_path, "w") as f:
             # 1. Source Mob (Represents physical missing file)
-            source_mob = f.create.SourceMob("Dummy_Audio_File")
+            source_mob = f.create.SourceMob("VCut_Audio_Source")
             f.content.mobs.append(source_mob)
             
             descriptor = f.create.PCMDescriptor()
             locator = f.create.NetworkLocator()
-            locator['URLString'].value = "file:///dummy_scene_audio.wav"
+            locator['URLString'].value = "file:///vcut_audio_source.wav"
             descriptor.locator.append(locator)
             descriptor['SampleRate'].value = 48000
             descriptor['AudioSamplingRate'].value = 48000
@@ -315,7 +315,7 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
             src_tc_slot.segment = src_tc_clip
             
             # 2. Master Mob (Represents imported clip)
-            master_mob = f.create.MasterMob("Scene_Clips_Master")
+            master_mob = f.create.MasterMob("VCut_Master_Clip")
             f.content.mobs.append(master_mob)
             master_slot = master_mob.create_sound_slot(edit_rate=edit_rate)
             master_clip = source_mob.create_source_clip(slot_id=source_slot.slot_id, start=0, length=total_frames)
@@ -328,7 +328,7 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
             tc_slot.segment = tc_clip
             
             # 3. Composition Mob (The Timeline/Track)
-            comp_mob = f.create.CompositionMob("Scene Cuts Timeline")
+            comp_mob = f.create.CompositionMob("VCut_Sequence")
             f.content.mobs.append(comp_mob)
             comp_slot = comp_mob.create_sound_slot(edit_rate=edit_rate)
             
