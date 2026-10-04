@@ -427,7 +427,7 @@ def resource_path(relative_path):
 
 root = ctk.CTk()
 root.title("VCut2DAW - Video to Scene Markers on ProTools | by F.Utku Gercik")
-root.geometry("680x680")
+root.geometry("700x740")
 root.resizable(True, True)
 
 try:
@@ -541,9 +541,6 @@ out_browse_btn.pack(side=tk.RIGHT)
 log_label = ctk.CTkLabel(frame, text="Console Output:", font=("Arial", 12, "bold"))
 log_label.pack(anchor="w", padx=10, pady=(5, 0))
 
-log_area = ctk.CTkTextbox(frame, height=120, state="disabled", fg_color="#1e1e1e", text_color="#00ff00", font=("Consolas", 12))
-log_area.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-
 import webbrowser
 
 def open_coffee():
@@ -555,6 +552,10 @@ coffee_btn.pack(side=tk.BOTTOM, pady=(0, 5))
 footer = ctk.CTkLabel(frame, text="Developed by F.Utku Gercik | VCut2DAW v1.0 | License: CC BY-NC 4.0 | ?? Click for About", text_color="gray", font=("Arial", 10), cursor="hand2")
 footer.pack(side=tk.BOTTOM, pady=(10, 0))
 footer.bind("<Button-1>", lambda e: show_about())
+
+
+log_area = ctk.CTkTextbox(frame, height=120, state="disabled", fg_color="#1e1e1e", text_color="#00ff00", font=("Consolas", 12))
+log_area.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
 if __name__ == "__main__":
     root.mainloop()
