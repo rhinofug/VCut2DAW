@@ -52,3 +52,12 @@ GitHub: [github.com/rhinofug/VCut2DAW](https://github.com/rhinofug/VCut2DAW)
  
 
 *Protected with Watermark technology.*
+## Acknowledgments & Open Source Credits
+This project stands on the shoulders of giants. VCut2DAW would not be possible without the incredible work done by the open-source community. Special thanks to the creators of the core engines powering this app:
+
+- **[PySceneDetect](https://github.com/Breakthrough/PySceneDetect) (by bcastillox):** For the incredibly robust frame-analysis and cut detection engine.
+- **[pyaaf2](https://github.com/markreidvfx/pyaaf2) (by markreidvfx):** For the brilliant AAF reading/writing library that made Pro Tools integration possible.
+- **[Mido](https://github.com/mido/mido):** For handling all the complex MIDI object generation.
+- **[CustomTkinter](https://github.com/TomSchimansky/CustomTkinter):** For providing the sleek, modern dark-mode GUI.
+
+*Thank you for keeping open-source post-production alive!*
