@@ -1,0 +1,4 @@
+scenedetect
+opencv-python
+pyaaf2
+mido

@@ -1,0 +1,473 @@
+import os
+import subprocess
+import sys
+import threading
+import tkinter as tk
+from tkinter import filedialog, messagebox
+from tkinter.scrolledtext import ScrolledText
+import csv
+import mido
+from mido import MetaMessage, MidiFile, MidiTrack
+
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_OUT_DIR = os.path.join(APP_DIR, "VCut_Exports")
+
+def log_message(msg):
+    log_area.config(state=tk.NORMAL)
+    log_area.insert(tk.END, msg + "\n")
+    log_area.see(tk.END)
+    log_area.config(state=tk.DISABLED)
+
+def select_video_file():
+    filepath = filedialog.askopenfilename(
+        title="Select Video File",
+        filetypes=(("Video files", "*.mp4 *.mov *.avi *.mkv"), ("All files", "*.*"))
+    )
+    if filepath:
+        video_entry.delete(0, tk.END)
+        video_entry.insert(0, filepath)
+        log_message(f"Selected video: {filepath}")
+
+def select_csv_file():
+    filepath = filedialog.askopenfilename(
+        title="Select CSV/EDL File",
+        filetypes=(("CSV files", "*.csv"), ("All files", "*.*"))
+    )
+    if filepath:
+        csv_entry.delete(0, tk.END)
+        csv_entry.insert(0, filepath)
+        log_message(f"Selected CSV/EDL: {filepath}")
+
+class RedirectStdout:
+    def __init__(self, log_cb):
+        self.log_cb = log_cb
+    def write(self, text):
+        if text.strip():
+            self.log_cb(text.strip())
+    def flush(self):
+        pass
+
+def run_step1_process(video_path, csv_out_dir, success_msg, expected_csv):
+    try:
+        log_area.after(0, log_message, f"Running PySceneDetect in-process on: {video_path}")
+        
+        import sys
+        from scenedetect.__main__ import main as scenedetect_main
+        
+        old_stdout = sys.stdout
+        old_stderr = sys.stderr
+        old_argv = sys.argv
+        
+        sys.stdout = RedirectStdout(lambda m: log_area.after(0, log_message, m))
+        sys.stderr = sys.stdout
+        
+        sys.argv = ["scenedetect", "-i", video_path, "-o", csv_out_dir, "detect-content", "list-scenes"]
+        
+        try:
+            scenedetect_main()
+            log_area.after(0, log_message, success_msg)
+            if os.path.exists(expected_csv):
+                csv_entry.after(0, lambda: csv_entry.delete(0, tk.END))
+                csv_entry.after(0, lambda: csv_entry.insert(0, expected_csv))
+            messagebox.showinfo("Success", success_msg)
+        except SystemExit as e:
+            if e.code == 0:
+                log_area.after(0, log_message, success_msg)
+                if os.path.exists(expected_csv):
+                    csv_entry.after(0, lambda: csv_entry.delete(0, tk.END))
+                    csv_entry.after(0, lambda: csv_entry.insert(0, expected_csv))
+                messagebox.showinfo("Success", success_msg)
+            else:
+                log_area.after(0, log_message, f"PROCESS EXITED WITH CODE: {e.code}")
+        finally:
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
+            sys.argv = old_argv
+
+    except Exception as e:
+        log_area.after(0, log_message, f"EXCEPTION: {str(e)}")
+        messagebox.showerror("Error", str(e))
+    finally:
+        btn_detect.config(state=tk.NORMAL)
+        btn_convert.config(state=tk.NORMAL)
+
+def start_detect():
+    video_path = video_entry.get()
+    if not video_path or not os.path.exists(video_path):
+        messagebox.showerror("Error", "Please select a valid video file.")
+        return
+
+    out_base = output_entry.get().strip()
+    if not out_base:
+        out_base = DEFAULT_OUT_DIR
+    
+    csv_out_dir = os.path.join(out_base, "CSV")
+    os.makedirs(csv_out_dir, exist_ok=True)
+
+    btn_detect.config(state=tk.DISABLED)
+    btn_convert.config(state=tk.DISABLED)
+    
+    video_filename = os.path.basename(video_path)
+    video_name_no_ext = os.path.splitext(video_filename)[0]
+    expected_csv_name = f"{video_name_no_ext}-Scenes.csv"
+    csv_full_path = os.path.join(csv_out_dir, expected_csv_name)
+
+    threading.Thread(target=run_step1_process, args=(video_path, csv_out_dir, "Step 1 Complete: Scene list (CSV) generated successfully.", csv_full_path), daemon=True).start()
+
+def parse_timecode_to_frames(tc_str, fps):
+    try:
+        parts = str(tc_str).replace(';', ':').split(':')
+        if len(parts) == 4:
+            h, m, s, f = map(int, parts)
+            math_fps = int(round(fps))
+            total_frames = (h * 3600 + m * 60 + s) * math_fps + f
+            return total_frames
+    except:
+        pass
+    return 0
+
+def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb):
+    try:
+        log_cb(f"Reading scenes from {os.path.basename(csv_path)}...")
+        scenes = []
+        fps = 25.0
+        
+        # Check if CSV or EDL
+        is_edl = csv_path.lower().endswith('.edl')
+        raw_scenes = []
+        
+        if is_edl:
+            with open(csv_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                scene_count = 1
+                for line in lines:
+                    line = line.strip()
+                    # A standard CMX3600 event line starts with a 3-digit number
+                    if line[:3].isdigit() and len(line) > 20:
+                        parts = line.split()
+                        if len(parts) >= 4:
+                            rec_in = parts[-2]
+                            rec_out = parts[-1]
+                            try:
+                                in_frames = parse_timecode_to_frames(rec_in, fps)
+                                out_frames = parse_timecode_to_frames(rec_out, fps)
+                                length = out_frames - in_frames
+                                raw_scenes.append([in_frames, length, f"Scene {scene_count}"])
+                                scene_count += 1
+                            except:
+                                pass
+        else:
+            with open(csv_path, 'r', encoding='utf-8') as f:
+                reader = csv.reader(f)
+                for row in reader:
+                    if not row: continue
+                    if not row[0].isdigit():
+                        if 'Frame Rate:' in row[0]:
+                            try:
+                                fps_str = row[0].split('Frame Rate:')[1].strip().split(' ')[0]
+                                fps = float(fps_str)
+                            except: pass
+                        continue
+                    
+                    try:
+                        scene_num = int(row[0])
+                        start_frame = int(row[1])
+                        length = int(row[7])
+                        raw_scenes.append([start_frame, length, f"Scene {scene_num}"])
+                    except: continue
+
+        if not raw_scenes:
+            raise ValueError("No scenes found in the CSV or EDL file. Is the format correct?")
+
+        # 1-Frame Cut Offset: Shift all cuts 1 frame back as requested
+        for i in range(1, len(raw_scenes)):
+            if raw_scenes[i][0] > 0:
+                raw_scenes[i][0] -= 1
+                
+        # Recalculate contiguous lengths
+        scenes = []
+        for i in range(len(raw_scenes)):
+            frame = raw_scenes[i][0]
+            name = raw_scenes[i][2]
+            if i < len(raw_scenes) - 1:
+                next_frame = raw_scenes[i+1][0]
+                length = next_frame - frame
+            else:
+                length = raw_scenes[i][1] # Keep original length for the very last scene
+            scenes.append((frame, length, name))
+
+        log_cb(f"Found {len(scenes)} scenes. Video Framerate: {fps}")
+        
+        # Calculate Timecode Offset
+        offset_frames = parse_timecode_to_frames(tc_string, fps)
+        log_cb(f"Session Start Timecode parsed as {offset_frames} frames offset.")
+
+        # ---- MIDI MARKER GENERATION ----
+        log_cb("Generating Frame-Accurate MIDI Marker file...")
+        mid = MidiFile()
+        track = MidiTrack()
+        mid.tracks.append(track)
+        
+        # Secret Watermark
+        track.append(MetaMessage('text', text='VCut2ProTools (c) Antigravity', time=0))
+        
+        # We assume Pro Tools default 120 BPM (500000 microseconds per beat) 
+        # so the offset scales correctly without needing tempo map import!
+        track.append(MetaMessage('set_tempo', tempo=500000, time=0))
+        mid.ticks_per_beat = 12000
+        ticks_per_second = 24000
+        
+        scenes.sort(key=lambda x: x[0])
+        
+        # Add offset to all MIDI ticks so they drop exactly at the right timecode in Pro Tools
+        offset_ticks = int(round((offset_frames / fps) * ticks_per_second))
+        
+        last_tick = 0
+        for frame, length, name in scenes:
+            abs_tick = offset_ticks + int(round((frame / fps) * ticks_per_second))
+            delta_tick = abs_tick - last_tick
+            track.append(MetaMessage('marker', text=name, time=delta_tick))
+            last_tick = abs_tick
+
+        mid.save(midi_path)
+        
+        # ---- AAF OFFLINE CLIP TRACK GENERATION ----
+        log_cb("Generating Compliant AAF Clip Track for Pro Tools...")
+        import aaf2
+        
+        edit_rate = int(fps) if isinstance(fps, float) and fps.is_integer() else fps
+        if edit_rate == 23.976: edit_rate = aaf2.rational.AAFRational(24000, 1001)
+        elif edit_rate == 29.97: edit_rate = aaf2.rational.AAFRational(30000, 1001)
+
+        with aaf2.open(aaf_path, "w") as f:
+            # 1. Source Mob (Represents physical missing file)
+            source_mob = f.create.SourceMob("Dummy_Audio_File")
+            f.content.mobs.append(source_mob)
+            
+            descriptor = f.create.PCMDescriptor()
+            locator = f.create.NetworkLocator()
+            locator['URLString'].value = "file:///dummy_scene_audio.wav"
+            descriptor.locator.append(locator)
+            descriptor['SampleRate'].value = 48000
+            descriptor['AudioSamplingRate'].value = 48000
+            descriptor['Channels'].value = 1
+            descriptor['QuantizationBits'].value = 16
+            
+            # Required properties for PCMDescriptor
+            descriptor['BlockAlign'].value = 2 # 1 channel * (16 bits / 8)
+            descriptor['AverageBPS'].value = 96000 # 48000 * 2
+            
+            # Find total length in video frames
+            total_frames = max(frame + length for frame, length, name in scenes) if scenes else 1000
+            
+            # Length in audio samples
+            audio_samples = int((total_frames / fps) * 48000) if fps > 0 else 48000
+            descriptor['Length'].value = audio_samples
+            
+            source_mob.descriptor = descriptor
+            
+            source_slot = source_mob.create_sound_slot(edit_rate=edit_rate)
+            source_slot.segment.length = total_frames
+            
+            # Add Timecode to Source Mob
+            src_tc_slot = source_mob.create_timeline_slot(edit_rate=edit_rate)
+            src_tc_clip = f.create.Timecode(int(round(fps)), drop=False)
+            src_tc_clip.start = offset_frames
+            src_tc_slot.segment = src_tc_clip
+            
+            # 2. Master Mob (Represents imported clip)
+            master_mob = f.create.MasterMob("Scene_Clips_Master")
+            master_mob.comments['Watermark'] = 'VCut2ProTools (c) Antigravity'
+            f.content.mobs.append(master_mob)
+            master_slot = master_mob.create_sound_slot(edit_rate=edit_rate)
+            master_clip = source_mob.create_source_clip(slot_id=source_slot.slot_id, start=0, length=total_frames)
+            master_slot.segment.components.append(master_clip)
+            
+            # Add Timecode to Master Mob to stamp it
+            tc_slot = master_mob.create_timeline_slot(edit_rate=edit_rate)
+            tc_clip = f.create.Timecode(int(round(fps)), drop=False)
+            tc_clip.start = offset_frames
+            tc_slot.segment = tc_clip
+            
+            # 3. Composition Mob (The Timeline/Track)
+            comp_mob = f.create.CompositionMob("Scene Cuts Timeline")
+            f.content.mobs.append(comp_mob)
+            comp_slot = comp_mob.create_sound_slot(edit_rate=edit_rate)
+            
+            # Add Timecode to Composition Mob to stamp the sequence
+            comp_tc_slot = comp_mob.create_timeline_slot(edit_rate=edit_rate)
+            comp_tc_clip = f.create.Timecode(int(round(fps)), drop=False)
+            comp_tc_clip.start = offset_frames
+            comp_tc_slot.segment = comp_tc_clip
+            
+            # Add all cuts
+            current_timeline_frame = 0
+            for frame, length, name in scenes:
+                # Fill any gap with silence/filler to maintain perfect absolute time sync
+                if frame > current_timeline_frame:
+                    gap_length = frame - current_timeline_frame
+                    filler = f.create.Filler("Sound", gap_length)
+                    comp_slot.segment.components.append(filler)
+                
+                # Pro Tools allows clips of 0 length? Better ensure min length 1
+                length = max(1, length)
+                clip = master_mob.create_source_clip(slot_id=master_slot.slot_id, start=frame, length=length)
+                comp_slot.segment.components.append(clip)
+                
+                current_timeline_frame = frame + length
+                
+        success_msg = f"Step 2 Complete!\n\n1) MIDI Markers saved at:\n{midi_path}\n\n2) Empty Clip Track (AAF) saved at:\n{aaf_path}"
+        log_cb(success_msg)
+        done_cb(success_msg, True)
+
+    except Exception as e:
+        err_msg = f"Error during Generation: {str(e)}"
+        log_cb(err_msg)
+        done_cb(err_msg, False)
+
+def on_step2_done(msg, success):
+    btn_detect.config(state=tk.NORMAL)
+    btn_convert.config(state=tk.NORMAL)
+    if success:
+        messagebox.showinfo("Success", msg)
+    else:
+        messagebox.showerror("Error", msg)
+
+def start_convert():
+    csv_path = csv_entry.get()
+    if not csv_path or not os.path.exists(csv_path):
+        messagebox.showerror("Error", "Please select a valid CSV/EDL file first.")
+        return
+
+    tc_string = tc_entry.get().strip()
+    if not tc_string:
+        tc_string = "01:00:00:00"
+        
+    out_base = output_entry.get().strip()
+    if not out_base:
+        out_base = DEFAULT_OUT_DIR
+        
+    midi_out_dir = os.path.join(out_base, "MIDI")
+    aaf_out_dir = os.path.join(out_base, "AAF")
+    os.makedirs(midi_out_dir, exist_ok=True)
+    os.makedirs(aaf_out_dir, exist_ok=True)
+
+    csv_filename = os.path.basename(csv_path)
+    base_name = os.path.splitext(csv_filename)[0]
+    
+    if base_name.endswith("-Scenes"):
+        base_name = base_name.replace("-Scenes", "")
+        
+    output_midi = os.path.join(midi_out_dir, f"{base_name}_Markers.mid")
+    output_aaf = os.path.join(aaf_out_dir, f"{base_name}_ClipTrack.aaf")
+
+    btn_detect.config(state=tk.DISABLED)
+    btn_convert.config(state=tk.DISABLED)
+    
+    def cb_log(m): log_area.after(0, log_message, m)
+    def cb_done(m, s): log_area.after(0, lambda: on_step2_done(m, s))
+    
+    threading.Thread(target=run_step2_process, args=(csv_path, output_midi, output_aaf, tc_string, cb_log, cb_done), daemon=True).start()
+
+# --- GUI Setup ---
+root = tk.Tk()
+root.title("VCut2ProTools - Open Source Conform Assistant")
+root.geometry("650x620")
+root.resizable(True, True)
+
+def show_about():
+    about_text = (
+        "VCut2ProTools v1.0\n"
+        "An Open Source Conform Assistant for Pro Tools\n\n"
+        "Developed by: F.Utku Gerçik\n"
+        "Email: utkugercik@gmail.com\n"
+        "GitHub: https://github.com/rhinofug/VCut2ProTools\n\n"
+        "License: CC BY-NC 4.0 (Non-Commercial)\n"
+        "(c) 2026 - Built with Antigravity"
+    )
+    messagebox.showinfo("About VCut2ProTools", about_text)
+
+menubar = tk.Menu(root)
+help_menu = tk.Menu(menubar, tearoff=0)
+help_menu.add_command(label="About / Credits", command=show_about)
+menubar.add_cascade(label="Help", menu=help_menu)
+root.config(menu=menubar)
+
+frame = tk.Frame(root, padx=20, pady=20)
+frame.pack(fill=tk.BOTH, expand=True)
+
+# ---- OUTPUT DIRECTORY SECTION ----
+out_frame = tk.LabelFrame(frame, text=" Global Output Folder (Where files will be saved) ", padx=10, pady=10)
+out_frame.pack(fill=tk.X, pady=(0, 10))
+
+out_file_frame = tk.Frame(out_frame)
+out_file_frame.pack(fill=tk.X, pady=5)
+
+output_entry = tk.Entry(out_file_frame)
+output_entry.insert(0, DEFAULT_OUT_DIR)
+output_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+
+def select_output_dir():
+    dirpath = filedialog.askdirectory(title="Select Output Folder")
+    if dirpath:
+        output_entry.delete(0, tk.END)
+        output_entry.insert(0, dirpath)
+        log_message(f"Output folder set to: {dirpath}")
+
+out_browse_btn = tk.Button(out_file_frame, text="Browse Folder...", command=select_output_dir)
+out_browse_btn.pack(side=tk.RIGHT)
+
+# ---- STEP 1 SECTION ----
+step1_frame = tk.LabelFrame(frame, text=" Phase 1: Video Analysis (Creates CSV) ", padx=10, pady=10)
+step1_frame.pack(fill=tk.X, pady=(0, 10))
+
+video_file_frame = tk.Frame(step1_frame)
+video_file_frame.pack(fill=tk.X, pady=5)
+
+video_entry = tk.Entry(video_file_frame)
+video_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+
+video_browse_btn = tk.Button(video_file_frame, text="Browse Video...", command=select_video_file)
+video_browse_btn.pack(side=tk.RIGHT)
+
+btn_detect = tk.Button(step1_frame, text="Step 1: Detect Scenes", command=start_detect, bg="#2196F3", fg="white", font=("Arial", 9, "bold"), height=2)
+btn_detect.pack(fill=tk.X, pady=(5, 0))
+
+
+# ---- STEP 2 SECTION ----
+step2_frame = tk.LabelFrame(frame, text=" Phase 2: Convert to Pro Tools (Creates MIDI & AAF) ", padx=10, pady=10)
+step2_frame.pack(fill=tk.X, pady=(0, 10))
+
+csv_file_frame = tk.Frame(step2_frame)
+csv_file_frame.pack(fill=tk.X, pady=5)
+
+csv_entry = tk.Entry(csv_file_frame)
+csv_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+
+csv_browse_btn = tk.Button(csv_file_frame, text="Browse CSV...", command=select_csv_file)
+csv_browse_btn.pack(side=tk.RIGHT)
+
+tc_frame = tk.Frame(step2_frame)
+tc_frame.pack(fill=tk.X, pady=5)
+tc_label = tk.Label(tc_frame, text="Session Start Timecode (e.g. 01:00:00:00):")
+tc_label.pack(side=tk.LEFT)
+tc_entry = tk.Entry(tc_frame, width=15, justify="center")
+tc_entry.insert(0, "01:00:00:00")
+tc_entry.pack(side=tk.LEFT, padx=10)
+
+btn_convert = tk.Button(step2_frame, text="Step 2: Generate MIDI & AAF", command=start_convert, bg="#4CAF50", fg="white", font=("Arial", 9, "bold"), height=2)
+btn_convert.pack(fill=tk.X, pady=(5, 0))
+
+
+# ---- CONSOLE ----
+log_label = tk.Label(frame, text="Console Output:")
+log_label.pack(anchor="w", pady=(5, 0))
+
+log_area = ScrolledText(frame, height=10, state=tk.DISABLED, bg="#f4f4f4")
+log_area.pack(fill=tk.BOTH, expand=True, pady=5)
+
+footer = tk.Label(frame, text="Developed by F.Utku Gerçik | VCut2ProTools v1.0 | License: CC BY-NC 4.0", fg="gray", font=("Arial", 8))
+footer.pack(side=tk.BOTTOM, pady=(10, 0))
+
+if __name__ == "__main__":
+    root.mainloop()

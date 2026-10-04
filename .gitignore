@@ -1,0 +1,23 @@
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+.env
+*-Scenes.csv
+*_Markers.mid
+*_ClipTrack.aaf
+
+# Agent & Memory Files
+V2_Project_Memory.md
+*_Plan.md
+*.log
+# Export Folders
+VCut_Exports/
+
+# Video & Media Files
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.wmv
+*.aaf
