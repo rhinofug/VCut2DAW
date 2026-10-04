@@ -2,6 +2,9 @@
 
 VCut2DAW is an open-source video-to-DAW pipeline tool designed specifically for Sound Editors and Assistant Editors. It automatically detects visual cuts from a video (or parses CMX3600 EDLs) and generates **100% compliant Dummy AAFs and MIDI Markers** perfectly synced for DAWs (Pro Tools, Nuendo, Reaper, Logic, etc.).
 
+<a href="https://buymeacoffee.com/rhinofug" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 40px !important;width: 145px !important;" ></a>
+
+
 ## Why This Exists? (The Technical Edge)
 - **DAW AAF Strictness (Pro Tools, Nuendo):** Pro Tools 12.5+ aggressively rejects standard OTIO AAFs. VCut2DAW uses `pyaaf2` to build compliant `SourceMob` and `MasterMob` hierarchies with valid `PCMDescriptor`s so DAWs (especially Pro Tools) never throw an import error.
 - **The "1-Frame Drift" Fix:** AI cut detection often places the cut on the first *new* frame, resulting in a 1-frame offset compared to traditional NLE edits. This tool automatically mathematically shifts all cuts 1 frame left and fills the timeline gap to ensure perfect frame sync with the picture department.
@@ -43,6 +46,9 @@ You are free to use, share, and modify this code for your personal or studio wor
 ## Author
 **F.Utku Gerçik**  
 Email: utkugercik@gmail.com  
-GitHub: [github.com/rhinofug/VCut2DAW](https://github.com/rhinofug/VCut2DAW) 
+GitHub: [github.com/rhinofug/VCut2DAW](https://github.com/rhinofug/VCut2DAW)
+
+<a href="https://buymeacoffee.com/rhinofug" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 40px !important;width: 145px !important;" ></a>
+ 
 
 *Protected with Watermark technology.*

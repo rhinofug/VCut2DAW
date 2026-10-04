@@ -544,6 +544,14 @@ log_label.pack(anchor="w", padx=10, pady=(5, 0))
 log_area = ctk.CTkTextbox(frame, height=120, state="disabled", fg_color="#1e1e1e", text_color="#00ff00", font=("Consolas", 12))
 log_area.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
+import webbrowser
+
+def open_coffee():
+    webbrowser.open("https://buymeacoffee.com/rhinofug")
+
+coffee_btn = ctk.CTkButton(frame, text="☕ Buy me a coffee", command=open_coffee, fg_color="#FFDD00", hover_color="#FFC300", text_color="black", font=("Arial", 12, "bold"), width=150, height=30)
+coffee_btn.pack(side=tk.BOTTOM, pady=(0, 5))
+
 footer = ctk.CTkLabel(frame, text="Developed by F.Utku Gercik | VCut2DAW v1.0 | License: CC BY-NC 4.0 | ?? Click for About", text_color="gray", font=("Arial", 10), cursor="hand2")
 footer.pack(side=tk.BOTTOM, pady=(10, 0))
 footer.bind("<Button-1>", lambda e: show_about())
