@@ -428,6 +428,7 @@ def resource_path(relative_path):
 root = ctk.CTk()
 root.title("VCut2DAW - Video to Scene Markers on ProTools | by F.Utku Gercik")
 root.geometry("700x740")
+root.minsize(700, 740)
 root.resizable(True, True)
 
 try:
