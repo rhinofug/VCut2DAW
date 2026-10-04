@@ -13,6 +13,8 @@ V2_Project_Memory.md
 *.log
 # Export Folders
 VCut_Exports/
+builds/
+*.zip
 
 # Video & Media Files
 *.mp4

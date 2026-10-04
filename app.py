@@ -9,7 +9,11 @@ import csv
 import mido
 from mido import MetaMessage, MidiFile, MidiTrack
 
-APP_DIR = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, 'frozen', False):
+    APP_DIR = os.path.dirname(sys.executable)
+else:
+    APP_DIR = os.path.dirname(os.path.abspath(__file__))
+    
 DEFAULT_OUT_DIR = os.path.join(APP_DIR, "VCut_Exports")
 
 def log_message(msg):
