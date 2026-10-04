@@ -248,7 +248,7 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
         mid.tracks.append(track)
         
         # Secret Watermark
-        track.append(MetaMessage('text', text='VCut2ProTools (c) Antigravity', time=0))
+        track.append(MetaMessage('text', text='VCut2DAW (c) Antigravity', time=0))
         
         # We assume Pro Tools default 120 BPM (500000 microseconds per beat) 
         # so the offset scales correctly without needing tempo map import!
@@ -426,7 +426,7 @@ def resource_path(relative_path):
 
 
 root = ctk.CTk()
-root.title("VCut2DAW - Video to Scene Markers on ProTools | by F.Utku Gercik")
+root.title("VCut2DAW - Video to Scene Markers for DAWs | by F.Utku Gercik")
 root.geometry("700x740")
 root.minsize(700, 740)
 root.resizable(True, True)
@@ -439,7 +439,7 @@ except:
 def show_about():
     about_text = (
         "VCut2DAW v1.0\n"
-        "An Video to Scene Markers on ProTools for Pro Tools\n\n"
+        "A Video to Scene Markers tool for DAWs (Pro Tools, Nuendo, Logic, etc.)\n\n"
         "Developed by: F.Utku Gercik\n"
         "Email: utkugercik@gmail.com\n"
         "GitHub: https://github.com/rhinofug/VCut2DAW\n\n"
@@ -476,7 +476,7 @@ btn_detect.pack(fill=tk.X, padx=10, pady=(5, 10))
 step2_frame = ctk.CTkFrame(frame, corner_radius=8)
 step2_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
 
-ctk.CTkLabel(step2_frame, text="Phase 2: Convert to Pro Tools (Creates MIDI & AAF)", font=("Arial", 14, "bold")).pack(anchor="w", padx=10, pady=(10, 0))
+ctk.CTkLabel(step2_frame, text="Phase 2: Convert to DAW (Creates MIDI & AAF)", font=("Arial", 14, "bold")).pack(anchor="w", padx=10, pady=(10, 0))
 
 csv_file_frame = ctk.CTkFrame(step2_frame, fg_color="transparent")
 csv_file_frame.pack(fill=tk.X, padx=10, pady=5)
@@ -550,7 +550,7 @@ def open_coffee():
 coffee_btn = ctk.CTkButton(frame, text="☕ Buy me a coffee", command=open_coffee, fg_color="#FFDD00", hover_color="#FFC300", text_color="black", font=("Arial", 12, "bold"), width=150, height=30)
 coffee_btn.pack(side=tk.BOTTOM, pady=(0, 5))
 
-footer = ctk.CTkLabel(frame, text="Developed by F.Utku Gercik | VCut2DAW v1.0 | License: CC BY-NC 4.0 | ?? Click for About", text_color="gray", font=("Arial", 10), cursor="hand2")
+footer = ctk.CTkLabel(frame, text="Developed by F.Utku Gercik | VCut2DAW v1.0 | License: CC BY-NC 4.0 | (i) Click for About", text_color="gray", font=("Arial", 10), cursor="hand2")
 footer.pack(side=tk.BOTTOM, pady=(10, 0))
 footer.bind("<Button-1>", lambda e: show_about())
 
