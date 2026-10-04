@@ -1,6 +1,8 @@
-# VCut2DAW (Open Source Conform Assistant)
+﻿# VCut2DAW (Open Source Conform Assistant)
 
 VCut2DAW is an open-source video-to-DAW pipeline tool designed specifically for Sound Editors and Assistant Editors. It automatically detects visual cuts from a video (or parses CMX3600 EDLs) and generates **100% compliant Dummy AAFs and MIDI Markers** perfectly synced for DAWs (Pro Tools, Nuendo, Reaper, Logic, etc.).
+
+![VCut2DAW Interface](screenshot.jpg)
 
 <a href="https://buymeacoffee.com/rhinofug" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 40px !important;width: 145px !important;" ></a>
 
@@ -61,3 +63,4 @@ This project stands on the shoulders of giants. VCut2DAW would not be possible w
 - **[CustomTkinter](https://github.com/TomSchimansky/CustomTkinter):** For providing the sleek, modern dark-mode GUI.
 
 *Thank you for keeping open-source post-production alive!*
+
