@@ -452,35 +452,6 @@ def show_about():
 frame = ctk.CTkFrame(root, corner_radius=10)
 frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 
-# ---- OUTPUT DIRECTORY SECTION ----
-out_frame = ctk.CTkFrame(frame, corner_radius=8)
-out_frame.pack(fill=tk.X, padx=10, pady=(10, 10))
-
-ctk.CTkLabel(out_frame, text="Global Output Folder & Project Prefix", font=("Arial", 14, "bold")).pack(anchor="w", padx=10, pady=(10, 0))
-
-out_file_frame = ctk.CTkFrame(out_frame, fg_color="transparent")
-out_file_frame.pack(fill=tk.X, padx=10, pady=5)
-
-proj_name_frame = ctk.CTkFrame(out_frame, fg_color="transparent")
-proj_name_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
-ctk.CTkLabel(proj_name_frame, text="Project / Output Prefix:").pack(side=tk.LEFT)
-proj_name_entry = ctk.CTkEntry(proj_name_frame, placeholder_text="Default: Auto from Video/CSV")
-proj_name_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
-
-output_entry = ctk.CTkEntry(out_file_frame)
-output_entry.insert(0, DEFAULT_OUT_DIR)
-output_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
-
-def select_output_dir():
-    dirpath = filedialog.askdirectory(title="Select Output Folder")
-    if dirpath:
-        output_entry.delete(0, tk.END)
-        output_entry.insert(0, dirpath)
-        log_message(f"Output folder set to: {dirpath}")
-
-out_browse_btn = ctk.CTkButton(out_file_frame, text="Browse Folder...", command=select_output_dir, width=120)
-out_browse_btn.pack(side=tk.RIGHT)
-
 # ---- STEP 1 SECTION ----
 step1_frame = ctk.CTkFrame(frame, corner_radius=8)
 step1_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
@@ -534,6 +505,36 @@ full_run_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
 
 btn_full_run = ctk.CTkButton(full_run_frame, text="Video to Markers (Full Run)", command=start_full_run, fg_color="#4CAF50", hover_color="#388E3C", font=("Arial", 16, "bold"), height=50)
 btn_full_run.pack(fill=tk.X)
+
+# ---- OUTPUT DIRECTORY SECTION ----
+out_frame = ctk.CTkFrame(frame, corner_radius=8, fg_color="transparent")
+out_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+
+ctk.CTkLabel(out_frame, text="Global Output Folder & Project Prefix (Optional)", font=("Arial", 12), text_color="gray").pack(anchor="w", padx=10, pady=(5, 0))
+
+out_file_frame = ctk.CTkFrame(out_frame, fg_color="transparent")
+out_file_frame.pack(fill=tk.X, padx=10, pady=2)
+
+proj_name_frame = ctk.CTkFrame(out_frame, fg_color="transparent")
+proj_name_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
+ctk.CTkLabel(proj_name_frame, text="Project / Output Prefix:", text_color="gray").pack(side=tk.LEFT)
+proj_name_entry = ctk.CTkEntry(proj_name_frame, placeholder_text="Default: Auto from Video/CSV", fg_color="#2b2b2b", text_color="gray")
+proj_name_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
+
+output_entry = ctk.CTkEntry(out_file_frame, fg_color="#2b2b2b", text_color="gray")
+output_entry.insert(0, DEFAULT_OUT_DIR)
+output_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+
+def select_output_dir():
+    dirpath = filedialog.askdirectory(title="Select Output Folder")
+    if dirpath:
+        output_entry.delete(0, tk.END)
+        output_entry.insert(0, dirpath)
+        log_message(f"Output folder set to: {dirpath}")
+
+out_browse_btn = ctk.CTkButton(out_file_frame, text="Browse...", command=select_output_dir, width=80, fg_color="#333333", hover_color="#444444", text_color="gray")
+out_browse_btn.pack(side=tk.RIGHT)
+
 
 # ---- CONSOLE ----
 
