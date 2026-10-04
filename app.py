@@ -1,4 +1,4 @@
-import os
+﻿import os
 import subprocess
 import sys
 import threading
@@ -374,7 +374,7 @@ def start_convert():
 
 # --- GUI Setup ---
 root = tk.Tk()
-root.title("VCut2ProTools - Open Source Conform Assistant")
+root.title("VCut2ProTools - Open Source Conform Assistant | by F.Utku Gercik")
 root.geometry("650x620")
 root.resizable(True, True)
 
@@ -382,7 +382,7 @@ def show_about():
     about_text = (
         "VCut2ProTools v1.0\n"
         "An Open Source Conform Assistant for Pro Tools\n\n"
-        "Developed by: F.Utku Gerçik\n"
+        "Developed by: F.Utku Gercik\n"
         "Email: utkugercik@gmail.com\n"
         "GitHub: https://github.com/rhinofug/VCut2ProTools\n\n"
         "License: CC BY-NC 4.0 (Non-Commercial)\n"
@@ -469,8 +469,9 @@ log_label.pack(anchor="w", pady=(5, 0))
 log_area = ScrolledText(frame, height=10, state=tk.DISABLED, bg="#f4f4f4")
 log_area.pack(fill=tk.BOTH, expand=True, pady=5)
 
-footer = tk.Label(frame, text="Developed by F.Utku Gerçik | VCut2ProTools v1.0 | License: CC BY-NC 4.0", fg="gray", font=("Arial", 8))
+footer = tk.Label(frame, text="Developed by F.Utku Gercik | VCut2ProTools v1.0 | License: CC BY-NC 4.0", fg="gray", font=("Arial", 8))
 footer.pack(side=tk.BOTTOM, pady=(10, 0))
 
 if __name__ == "__main__":
     root.mainloop()
+
