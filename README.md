@@ -4,8 +4,6 @@ VCut2DAW is an open-source video-to-DAW pipeline tool designed specifically for 
 
 ![VCut2DAW Interface](screenshot.jpg)
 
-<a href="https://buymeacoffee.com/rhinofug" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 40px !important;width: 145px !important;" ></a>
-
 
 ## Why This Exists? (The Technical Edge)
 - **DAW AAF Strictness (Pro Tools, Nuendo):** Pro Tools 12.5+ aggressively rejects standard OTIO AAFs. VCut2DAW uses `pyaaf2` to build compliant `SourceMob` and `MasterMob` hierarchies with valid `PCMDescriptor`s so DAWs (especially Pro Tools) never throw an import error.
@@ -63,4 +61,5 @@ This project stands on the shoulders of giants. VCut2DAW would not be possible w
 - **[CustomTkinter](https://github.com/TomSchimansky/CustomTkinter):** For providing the sleek, modern dark-mode GUI.
 
 *Thank you for keeping open-source post-production alive!*
+
 
