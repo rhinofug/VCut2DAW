@@ -11,7 +11,7 @@ VCut2DAW is an open-source video-to-DAW pipeline tool designed specifically for 
 - **The "120 BPM" MIDI Sync Issue:** DAWs (like Pro Tools) often force their session tempo (default 120 BPM) onto imported MIDI markers unless you overwrite the tempo map. This tool mathematically hardcodes the MIDI tick scale to assume 120 BPM (`ticks_per_beat = 12000`), ensuring 01:00:00:00 lands exactly at 1 hour, not 30 minutes!
 
 ## Features
-- **Video to Cuts:** Drag and drop an MP4/MOV and get a frame-accurate CSV.
+- **Video to Cuts:** Select an MP4/MOV and get a frame-accurate CSV.
 - **EDL Support:** Got an EDL from the editor? Drop the `.edl` file directly into Step 2!
 - **Dummy AAF Generation:** Generates a Clip Track allowing you to use `Tab to Transient` to jump between scenes.
 - **Session Start Timecode Offset:** Input your session start (e.g., `01:00:00:00`) and the files will spot perfectly without manual offset mapping.
@@ -61,5 +61,6 @@ This project stands on the shoulders of giants. VCut2DAW would not be possible w
 - **[CustomTkinter](https://github.com/TomSchimansky/CustomTkinter):** For providing the sleek, modern dark-mode GUI.
 
 *Thank you for keeping open-source post-production alive!*
+
 
 

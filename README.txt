@@ -21,8 +21,8 @@ Support the project: https://buymeacoffee.com/rhinofug
 
 ## Features
 
-- Video to Cuts: Drag and drop an MP4/MOV and get a frame-accurate CSV.
-- EDL Support: Drop a standard .edl file directly into Step 2!
+- Video to Cuts: Select an MP4/MOV and get a frame-accurate CSV.
+- EDL Support: Load a standard .edl file directly into Step 2!
 - Dummy AAF Generation: Generates a Clip Track allowing you to use 'Tab to Transient' to jump between scenes.
 - Session Start Timecode Offset: Input your session start (e.g., 01:00:00:00) and the files will spot perfectly.
 
@@ -77,3 +77,4 @@ done by the open-source community. Special thanks to the creators of the core en
 - CustomTkinter (by TomSchimansky): For providing the sleek, modern dark-mode GUI.
 
 Thank you for keeping open-source post-production alive!
+
