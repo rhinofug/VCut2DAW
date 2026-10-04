@@ -15,10 +15,10 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Set up Python 3.9
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.9'
 
@@ -34,14 +34,14 @@ jobs:
 
     - name: Archive Production Artifacts (Windows)
       if: matrix.os == 'windows-latest'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: VCut2ProTools-Windows
         path: dist/VCut2ProTools.exe
 
     - name: Archive Production Artifacts (macOS)
       if: matrix.os == 'macos-latest'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: VCut2ProTools-macOS
         path: dist/VCut2ProTools.app
