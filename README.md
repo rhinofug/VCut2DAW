@@ -16,13 +16,13 @@ VCut2DAW is an open-source video-to-DAW pipeline tool designed specifically for 
 ## Installation
 
 ### For Windows
-Double click the `setup_and_run.bat` file. It will automatically create a virtual environment, install dependencies, and launch the app.
+Double click the `compile_windows.bat` file. It will automatically download dependencies, compile the source code into a standalone `.exe`, and place it in the `builds/` folder for you to run!
 
 ### For macOS / Linux
 Open your terminal, navigate to the folder, and run:
 ```bash
-chmod +x setup_and_run.sh
-./setup_and_run.sh
+chmod +x compile_mac.sh
+./compile_mac.sh
 ```
 
 ## 💡 Important Pro Tools / DAW Tips (FAQ)
