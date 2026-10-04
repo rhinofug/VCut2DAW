@@ -34,4 +34,4 @@ You are free to use, share, and modify this code for your personal or studio wor
 Email: utkugercik@gmail.com  
 GitHub: [github.com/rhinofug/VCut2ProTools](https://github.com/rhinofug/VCut2ProTools) 
 
-*Protected by Antigravity Watermark technology.*
+*Protected with Watermark technology.*
