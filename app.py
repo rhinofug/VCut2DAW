@@ -1,4 +1,4 @@
-﻿__version__ = "1.0.0"
+__version__ = "1.0.0"
 import os
 import subprocess
 import sys
@@ -14,7 +14,11 @@ import mido
 from mido import MetaMessage, MidiFile, MidiTrack
 
 if getattr(sys, 'frozen', False):
-    APP_DIR = os.path.dirname(sys.executable)
+    if sys.platform == 'darwin' and 'MacOS' in sys.executable:
+        # For Mac .app bundles, go up 4 directories to get OUT of the .app entirely
+        APP_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(sys.executable))))
+    else:
+        APP_DIR = os.path.dirname(sys.executable)
 else:
     APP_DIR = os.path.dirname(os.path.abspath(__file__))
     
@@ -424,139 +428,141 @@ def resource_path(relative_path):
 
 # --- GUI Setup ---
 
-
-root = ctk.CTk()
-root.title("VCut2DAW - Video to Scene Markers for DAWs | by F.Utku Gercik")
-root.geometry("700x740")
-root.minsize(700, 740)
-root.resizable(True, True)
-
-try:
-    root.iconbitmap(resource_path("icon.ico"))
-except:
-    pass
-
-def show_about():
-    about_text = (
-        "VCut2DAW v1.0\n"
-        "A Video to Scene Markers tool for DAWs (Pro Tools, Nuendo, Logic, etc.)\n\n"
-        "Developed by: F.Utku Gercik\n"
-        "Email: utkugercik@gmail.com\n"
-        "GitHub: https://github.com/rhinofug/VCut2DAW\n\n"
-        "License: CC BY-NC 4.0 (Non-Commercial)\n"
-        "(c) 2026 - Built with Antigravity"
-    )
-    messagebox.showinfo("About VCut2DAW", about_text)
-
-
-
-frame = ctk.CTkFrame(root, corner_radius=10)
-frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-
-# ---- STEP 1 SECTION ----
-step1_frame = ctk.CTkFrame(frame, corner_radius=8)
-step1_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
-
-ctk.CTkLabel(step1_frame, text="Phase 1: Video Analysis (Creates CSV)", font=("Arial", 14, "bold")).pack(anchor="w", padx=10, pady=(10, 0))
-
-video_file_frame = ctk.CTkFrame(step1_frame, fg_color="transparent")
-video_file_frame.pack(fill=tk.X, padx=10, pady=5)
-
-video_entry = ctk.CTkEntry(video_file_frame)
-video_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
-
-video_browse_btn = ctk.CTkButton(video_file_frame, text="Browse Video...", command=select_video_file, width=120)
-video_browse_btn.pack(side=tk.RIGHT)
-
-btn_detect = ctk.CTkButton(step1_frame, text="Step 1: Detect Scenes", command=start_detect, fg_color="#2196F3", hover_color="#1976D2", font=("Arial", 14, "bold"), height=40)
-btn_detect.pack(fill=tk.X, padx=10, pady=(5, 10))
-
-
-# ---- STEP 2 SECTION ----
-step2_frame = ctk.CTkFrame(frame, corner_radius=8)
-step2_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
-
-ctk.CTkLabel(step2_frame, text="Phase 2: Convert to DAW (Creates MIDI & AAF)", font=("Arial", 14, "bold")).pack(anchor="w", padx=10, pady=(10, 0))
-
-csv_file_frame = ctk.CTkFrame(step2_frame, fg_color="transparent")
-csv_file_frame.pack(fill=tk.X, padx=10, pady=5)
-
-csv_entry = ctk.CTkEntry(csv_file_frame)
-csv_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
-
-csv_browse_btn = ctk.CTkButton(csv_file_frame, text="Browse CSV...", command=select_csv_file, width=120)
-csv_browse_btn.pack(side=tk.RIGHT)
-
-tc_frame = ctk.CTkFrame(step2_frame, fg_color="transparent")
-tc_frame.pack(fill=tk.X, padx=10, pady=5)
-tc_label = ctk.CTkLabel(tc_frame, text="Session Start Timecode (e.g. 01:00:00:00):")
-tc_label.pack(side=tk.LEFT)
-tc_entry = ctk.CTkEntry(tc_frame, width=150, justify="center")
-tc_entry.insert(0, "01:00:00:00")
-tc_entry.pack(side=tk.LEFT, padx=10)
-
-btn_convert = ctk.CTkButton(step2_frame, text="Step 2: Generate MIDI & AAF", command=start_convert, fg_color="#2196F3", hover_color="#1976D2", font=("Arial", 14, "bold"), height=40)
-btn_convert.pack(fill=tk.X, padx=10, pady=(5, 10))
-
-
-
-# ---- FULL RUN SECTION ----
-full_run_frame = ctk.CTkFrame(frame, fg_color="transparent")
-full_run_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
-
-btn_full_run = ctk.CTkButton(full_run_frame, text="Video to Markers (Full Run)", command=start_full_run, fg_color="#4CAF50", hover_color="#388E3C", font=("Arial", 16, "bold"), height=50)
-btn_full_run.pack(fill=tk.X)
-
-# ---- OUTPUT DIRECTORY SECTION ----
-out_frame = ctk.CTkFrame(frame, corner_radius=8, fg_color="transparent")
-out_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
-
-ctk.CTkLabel(out_frame, text="Global Output Folder & Project Prefix (Optional)", font=("Arial", 12), text_color="gray").pack(anchor="w", padx=10, pady=(5, 0))
-
-out_file_frame = ctk.CTkFrame(out_frame, fg_color="transparent")
-out_file_frame.pack(fill=tk.X, padx=10, pady=2)
-
-proj_name_frame = ctk.CTkFrame(out_frame, fg_color="transparent")
-proj_name_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
-ctk.CTkLabel(proj_name_frame, text="Project / Output Prefix:", text_color="gray").pack(side=tk.LEFT)
-proj_name_entry = ctk.CTkEntry(proj_name_frame, placeholder_text="Default: Auto from Video/CSV", fg_color="#2b2b2b", text_color="gray")
-proj_name_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
-
-output_entry = ctk.CTkEntry(out_file_frame, fg_color="#2b2b2b", text_color="gray")
-output_entry.insert(0, DEFAULT_OUT_DIR)
-output_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
-
-def select_output_dir():
-    dirpath = filedialog.askdirectory(title="Select Output Folder")
-    if dirpath:
-        output_entry.delete(0, tk.END)
-        output_entry.insert(0, dirpath)
-        log_message(f"Output folder set to: {dirpath}")
-
-out_browse_btn = ctk.CTkButton(out_file_frame, text="Browse...", command=select_output_dir, width=80, fg_color="#333333", hover_color="#444444", text_color="gray")
-out_browse_btn.pack(side=tk.RIGHT)
-
-
-# ---- CONSOLE ----
-
-log_label = ctk.CTkLabel(frame, text="Console Output:", font=("Arial", 12, "bold"))
-log_label.pack(anchor="w", padx=10, pady=(5, 0))
-
-import webbrowser
-
-def open_coffee():
-    webbrowser.open("https://buymeacoffee.com/rhinofug")
-
-coffee_btn = ctk.CTkButton(frame, text="☕ Buy me a coffee", command=open_coffee, fg_color="#FFDD00", hover_color="#FFC300", text_color="black", font=("Arial", 12, "bold"), width=150, height=30)
-coffee_btn.pack(side=tk.BOTTOM, pady=(0, 5))
-
-footer = ctk.CTkLabel(frame, text="Developed by F.Utku Gercik | VCut2DAW v1.0 | License: CC BY-NC 4.0 | (i) Click for About", text_color="gray", font=("Arial", 10), cursor="hand2")
-footer.pack(side=tk.BOTTOM, pady=(10, 0))
-footer.bind("<Button-1>", lambda e: show_about())
-
-
-log_area = ctk.CTkTextbox(frame, height=120, state="disabled", fg_color="#1e1e1e", text_color="#00ff00", font=("Consolas", 12))
-log_area.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-
+import multiprocessing
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
+
+    root = ctk.CTk()
+    root.title("VCut2DAW - Video to Scene Markers for DAWs | by F.Utku Gercik")
+    root.geometry("700x740")
+    root.minsize(700, 740)
+    root.resizable(True, True)
+    
+    try:
+        root.iconbitmap(resource_path("icon.ico"))
+    except:
+        pass
+    
+    def show_about():
+        about_text = (
+            "VCut2DAW v1.0\n"
+            "A Video to Scene Markers tool for DAWs (Pro Tools, Nuendo, Logic, etc.)\n\n"
+            "Developed by: F.Utku Gercik\n"
+            "Email: utkugercik@gmail.com\n"
+            "GitHub: https://github.com/rhinofug/VCut2DAW\n\n"
+            "License: CC BY-NC 4.0 (Non-Commercial)\n"
+            "(c) 2026 - Built with Antigravity"
+        )
+        messagebox.showinfo("About VCut2DAW", about_text)
+    
+    
+    
+    frame = ctk.CTkFrame(root, corner_radius=10)
+    frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+    
+    # ---- STEP 1 SECTION ----
+    step1_frame = ctk.CTkFrame(frame, corner_radius=8)
+    step1_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+    
+    ctk.CTkLabel(step1_frame, text="Phase 1: Video Analysis (Creates CSV)", font=("Arial", 14, "bold")).pack(anchor="w", padx=10, pady=(10, 0))
+    
+    video_file_frame = ctk.CTkFrame(step1_frame, fg_color="transparent")
+    video_file_frame.pack(fill=tk.X, padx=10, pady=5)
+    
+    video_entry = ctk.CTkEntry(video_file_frame)
+    video_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+    
+    video_browse_btn = ctk.CTkButton(video_file_frame, text="Browse Video...", command=select_video_file, width=120)
+    video_browse_btn.pack(side=tk.RIGHT)
+    
+    btn_detect = ctk.CTkButton(step1_frame, text="Step 1: Detect Scenes", command=start_detect, fg_color="#2196F3", hover_color="#1976D2", font=("Arial", 14, "bold"), height=40)
+    btn_detect.pack(fill=tk.X, padx=10, pady=(5, 10))
+    
+    
+    # ---- STEP 2 SECTION ----
+    step2_frame = ctk.CTkFrame(frame, corner_radius=8)
+    step2_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+    
+    ctk.CTkLabel(step2_frame, text="Phase 2: Convert to DAW (Creates MIDI & AAF)", font=("Arial", 14, "bold")).pack(anchor="w", padx=10, pady=(10, 0))
+    
+    csv_file_frame = ctk.CTkFrame(step2_frame, fg_color="transparent")
+    csv_file_frame.pack(fill=tk.X, padx=10, pady=5)
+    
+    csv_entry = ctk.CTkEntry(csv_file_frame)
+    csv_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+    
+    csv_browse_btn = ctk.CTkButton(csv_file_frame, text="Browse CSV...", command=select_csv_file, width=120)
+    csv_browse_btn.pack(side=tk.RIGHT)
+    
+    tc_frame = ctk.CTkFrame(step2_frame, fg_color="transparent")
+    tc_frame.pack(fill=tk.X, padx=10, pady=5)
+    tc_label = ctk.CTkLabel(tc_frame, text="Session Start Timecode (e.g. 01:00:00:00):")
+    tc_label.pack(side=tk.LEFT)
+    tc_entry = ctk.CTkEntry(tc_frame, width=150, justify="center")
+    tc_entry.insert(0, "01:00:00:00")
+    tc_entry.pack(side=tk.LEFT, padx=10)
+    
+    btn_convert = ctk.CTkButton(step2_frame, text="Step 2: Generate MIDI & AAF", command=start_convert, fg_color="#2196F3", hover_color="#1976D2", font=("Arial", 14, "bold"), height=40)
+    btn_convert.pack(fill=tk.X, padx=10, pady=(5, 10))
+    
+    
+    
+    # ---- FULL RUN SECTION ----
+    full_run_frame = ctk.CTkFrame(frame, fg_color="transparent")
+    full_run_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+    
+    btn_full_run = ctk.CTkButton(full_run_frame, text="Video to Markers (Full Run)", command=start_full_run, fg_color="#4CAF50", hover_color="#388E3C", font=("Arial", 16, "bold"), height=50)
+    btn_full_run.pack(fill=tk.X)
+    
+    # ---- OUTPUT DIRECTORY SECTION ----
+    out_frame = ctk.CTkFrame(frame, corner_radius=8, fg_color="transparent")
+    out_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+    
+    ctk.CTkLabel(out_frame, text="Global Output Folder & Project Prefix (Optional)", font=("Arial", 12), text_color="gray").pack(anchor="w", padx=10, pady=(5, 0))
+    
+    out_file_frame = ctk.CTkFrame(out_frame, fg_color="transparent")
+    out_file_frame.pack(fill=tk.X, padx=10, pady=2)
+    
+    proj_name_frame = ctk.CTkFrame(out_frame, fg_color="transparent")
+    proj_name_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
+    ctk.CTkLabel(proj_name_frame, text="Project / Output Prefix:", text_color="gray").pack(side=tk.LEFT)
+    proj_name_entry = ctk.CTkEntry(proj_name_frame, placeholder_text="Default: Auto from Video/CSV", fg_color="#2b2b2b", text_color="gray")
+    proj_name_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
+    
+    output_entry = ctk.CTkEntry(out_file_frame, fg_color="#2b2b2b", text_color="gray")
+    output_entry.insert(0, DEFAULT_OUT_DIR)
+    output_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+    
+    def select_output_dir():
+        dirpath = filedialog.askdirectory(title="Select Output Folder")
+        if dirpath:
+            output_entry.delete(0, tk.END)
+            output_entry.insert(0, dirpath)
+            log_message(f"Output folder set to: {dirpath}")
+    
+    out_browse_btn = ctk.CTkButton(out_file_frame, text="Browse...", command=select_output_dir, width=80, fg_color="#333333", hover_color="#444444", text_color="gray")
+    out_browse_btn.pack(side=tk.RIGHT)
+    
+    
+    # ---- CONSOLE ----
+    
+    log_label = ctk.CTkLabel(frame, text="Console Output:", font=("Arial", 12, "bold"))
+    log_label.pack(anchor="w", padx=10, pady=(5, 0))
+    
+    import webbrowser
+    
+    def open_coffee():
+        webbrowser.open("https://buymeacoffee.com/rhinofug")
+    
+    coffee_btn = ctk.CTkButton(frame, text="☕ Buy me a coffee", command=open_coffee, fg_color="#FFDD00", hover_color="#FFC300", text_color="black", font=("Arial", 12, "bold"), width=150, height=30)
+    coffee_btn.pack(side=tk.BOTTOM, pady=(0, 5))
+    
+    footer = ctk.CTkLabel(frame, text="Developed by F.Utku Gercik | VCut2DAW v1.0 | License: CC BY-NC 4.0 | (i) Click for About", text_color="gray", font=("Arial", 10), cursor="hand2")
+    footer.pack(side=tk.BOTTOM, pady=(10, 0))
+    footer.bind("<Button-1>", lambda e: show_about())
+    
+    
+    log_area = ctk.CTkTextbox(frame, height=120, state="disabled", fg_color="#1e1e1e", text_color="#00ff00", font=("Consolas", 12))
+    log_area.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+    
     root.mainloop()

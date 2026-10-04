@@ -30,6 +30,7 @@ pyinstaller --noconsole --windowed --collect-all aaf2 --collect-all scenedetect 
 echo ""
 echo "[4/4] Finalizing..."
 mkdir -p builds
+rm -rf builds/VCut2DAW.app
 cp -R dist/VCut2DAW.app builds/VCut2DAW.app
 rm -rf build dist VCut2DAW.spec
 
