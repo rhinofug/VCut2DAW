@@ -281,7 +281,6 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
             
             # 2. Master Mob (Represents imported clip)
             master_mob = f.create.MasterMob("Scene_Clips_Master")
-            master_mob.comments['Watermark'] = 'VCut2ProTools (c) Antigravity'
             f.content.mobs.append(master_mob)
             master_slot = master_mob.create_sound_slot(edit_rate=edit_rate)
             master_clip = source_mob.create_source_clip(slot_id=source_slot.slot_id, start=0, length=total_frames)
