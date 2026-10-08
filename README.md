@@ -1,4 +1,4 @@
-﻿# VCut2DAW (Open Source Conform Assistant)
+# VCut2DAW (Open Source Conform Assistant)
 
 VCut2DAW is an open-source video-to-DAW pipeline tool designed specifically for Sound Editors and Assistant Editors. It automatically detects visual cuts from a video (or parses CMX3600 EDLs) and generates **100% compliant Dummy AAFs and MIDI Markers** perfectly synced for DAWs (Pro Tools, Nuendo, Reaper, Logic, etc.).
 
@@ -18,10 +18,22 @@ VCut2DAW is an open-source video-to-DAW pipeline tool designed specifically for 
 
 ## Installation
 
-### For Windows
+### Option 1: Download Pre-built App (Recommended)
+Go to the **[Releases](https://github.com/rhinofug/VCut2DAW/releases)** page and download the latest `.exe` (for Windows) or `.dmg` (for macOS).
+
+**⚠️ Important macOS Security Note:** 
+Because this is a free open-source app, macOS Gatekeeper will automatically quarantine it when downloaded from the internet, which causes an "App is damaged" or "Cannot be verified" error. To fix this:
+1. Open the `.dmg` and drag `VCut2DAW` into your **Applications** folder.
+2. Open the **Terminal** app on your Mac.
+3. Paste this command and hit Enter: `xattr -cr /Applications/VCut2DAW.app`
+4. You can now open the app normally!
+
+### Option 2: Compile from Source
+
+**For Windows:**
 Double click the `compile_windows.bat` file. It will automatically download dependencies, compile the source code into a standalone `.exe`, and place it in the `builds/` folder for you to run!
 
-### For macOS / Linux
+**For macOS / Linux:**
 Open your terminal, navigate to the folder, and run:
 ```bash
 chmod +x compile_mac.sh
