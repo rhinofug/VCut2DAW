@@ -4,29 +4,21 @@ VCut2DAW is an open-source video-to-DAW pipeline tool designed specifically for 
 
 ![VCut2DAW Interface](screenshot.jpg)
 
+<br>
 
-## Why This Exists? (The Technical Edge)
-- **DAW AAF Strictness (Pro Tools, Nuendo):** Pro Tools 12.5+ aggressively rejects standard OTIO AAFs. VCut2DAW uses `pyaaf2` to build compliant `SourceMob` and `MasterMob` hierarchies with valid `PCMDescriptor`s so DAWs (especially Pro Tools) never throw an import error.
-- **The "1-Frame Drift" Fix:** AI cut detection often places the cut on the first *new* frame, resulting in a 1-frame offset compared to traditional NLE edits. This tool automatically mathematically shifts all cuts 1 frame left and fills the timeline gap to ensure perfect frame sync with the picture department.
-- **The "120 BPM" MIDI Sync Issue:** DAWs (like Pro Tools) often force their session tempo (default 120 BPM) onto imported MIDI markers unless you overwrite the tempo map. This tool mathematically hardcodes the MIDI tick scale to assume 120 BPM (`ticks_per_beat = 12000`), ensuring 01:00:00:00 lands exactly at 1 hour, not 30 minutes!
-
-## Features
-- **Video to Cuts:** Select an MP4/MOV and get a frame-accurate CSV.
-- **EDL Support:** Got an EDL from the editor? Drop the `.edl` file directly into Step 2!
-- **Dummy AAF Generation:** Generates a Clip Track allowing you to use `Tab to Transient` to jump between scenes.
-- **Session Start Timecode Offset:** Input your session start (e.g., `01:00:00:00`) and the files will spot perfectly without manual offset mapping.
-
-## Installation
+# 🚀 How to install and important security notes
 
 ### Option 1: Download Pre-built App (Recommended)
 Go to the **[Releases](https://github.com/rhinofug/VCut2DAW/releases)** page and download the latest `.exe` (for Windows) or `.dmg` (for macOS).
 
-**⚠️ Important macOS Security Note:** 
-Because this is a free open-source app, macOS Gatekeeper will automatically quarantine it when downloaded from the internet, which causes an "App is damaged" or "Cannot be verified" error. To fix this:
-1. Open the `.dmg` and drag `VCut2DAW` into your **Applications** folder.
-2. Open the **Terminal** app on your Mac.
-3. Paste this command and hit Enter: `xattr -cr /Applications/VCut2DAW.app`
-4. You can now open the app normally!
+> 🛑 **IMPORTANT macOS SECURITY NOTE:** 
+> Because this is a free open-source app, macOS Gatekeeper will automatically quarantine it when downloaded from the internet, which causes an *"App is damaged"* or *"Cannot be verified"* error. 
+> 
+> **To easily fix this:**
+> 1. Open the `.dmg` and drag `VCut2DAW` into your **Applications** folder.
+> 2. Open the **Terminal** app on your Mac.
+> 3. Paste this command and hit Enter: `xattr -cr /Applications/VCut2DAW.app`
+> 4. You can now open the app normally!
 
 ### Option 2: Compile from Source
 
@@ -39,6 +31,19 @@ Open your terminal, navigate to the folder, and run:
 chmod +x compile_mac.sh
 ./compile_mac.sh
 ```
+
+---
+
+## Why This Exists? (The Technical Edge)
+- **DAW AAF Strictness (Pro Tools, Nuendo):** Pro Tools 12.5+ aggressively rejects standard OTIO AAFs. VCut2DAW uses `pyaaf2` to build compliant `SourceMob` and `MasterMob` hierarchies with valid `PCMDescriptor`s so DAWs (especially Pro Tools) never throw an import error.
+- **The "1-Frame Drift" Fix:** AI cut detection often places the cut on the first *new* frame, resulting in a 1-frame offset compared to traditional NLE edits. This tool automatically mathematically shifts all cuts 1 frame left and fills the timeline gap to ensure perfect frame sync with the picture department.
+- **The "120 BPM" MIDI Sync Issue:** DAWs (like Pro Tools) often force their session tempo (default 120 BPM) onto imported MIDI markers unless you overwrite the tempo map. This tool mathematically hardcodes the MIDI tick scale to assume 120 BPM (`ticks_per_beat = 12000`), ensuring 01:00:00:00 lands exactly at 1 hour, not 30 minutes!
+
+## Features
+- **Video to Cuts:** Select an MP4/MOV and get a frame-accurate CSV.
+- **EDL Support:** Got an EDL from the editor? Drop the `.edl` file directly into Step 2!
+- **Dummy AAF Generation:** Generates a Clip Track allowing you to use `Tab to Transient` to jump between scenes.
+- **Session Start Timecode Offset:** Input your session start (e.g., `01:00:00:00`) and the files will spot perfectly without manual offset mapping.
 
 ## 💡 Important Pro Tools / DAW Tips (FAQ)
 
@@ -73,6 +78,3 @@ This project stands on the shoulders of giants. VCut2DAW would not be possible w
 - **[CustomTkinter](https://github.com/TomSchimansky/CustomTkinter):** For providing the sleek, modern dark-mode GUI.
 
 *Thank you for keeping open-source post-production alive!*
-
-
-
