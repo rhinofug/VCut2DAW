@@ -278,9 +278,13 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
         log_cb("Generating Compliant AAF Clip Track for Pro Tools...")
         import aaf2
         
-        edit_rate = int(fps) if isinstance(fps, float) and fps.is_integer() else fps
-        if abs(fps - 23.976) < 0.001: edit_rate = aaf2.rational.AAFRational(24000, 1001)
-        elif abs(fps - 29.97) < 0.001: edit_rate = aaf2.rational.AAFRational(30000, 1001)
+        # Determine exact video edit rate for Timecode metadata
+        video_edit_rate = int(fps) if isinstance(fps, float) and fps.is_integer() else fps
+        if abs(fps - 23.976) < 0.001: video_edit_rate = aaf2.rational.AAFRational(24000, 1001)
+        elif abs(fps - 29.97) < 0.001: video_edit_rate = aaf2.rational.AAFRational(30000, 1001)
+        
+        # Audio operates perfectly at Sample Rate (48000 Hz) to avoid fractional frame drift
+        sample_rate = 48000
 
         with aaf2.open(aaf_path, "w") as f:
             # 1. Source Mob (Represents physical missing file)
@@ -291,8 +295,8 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
             locator = f.create.NetworkLocator()
             locator['URLString'].value = "file:///dummy_scene_audio.wav"
             descriptor.locator.append(locator)
-            descriptor['SampleRate'].value = 48000
-            descriptor['AudioSamplingRate'].value = 48000
+            descriptor['SampleRate'].value = sample_rate
+            descriptor['AudioSamplingRate'].value = sample_rate
             descriptor['Channels'].value = 1
             descriptor['QuantizationBits'].value = 16
             
@@ -303,17 +307,18 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
             # Find total length in video frames
             total_frames = max(frame + length for frame, length, name in scenes) if scenes else 1000
             
-            # Length in audio samples
-            audio_samples = int((total_frames / fps) * 48000) if fps > 0 else 48000
+            # Length in exactly calculated audio samples
+            audio_samples = int(round((total_frames / fps) * sample_rate)) if fps > 0 else sample_rate
             descriptor['Length'].value = audio_samples
             
             source_mob.descriptor = descriptor
             
-            source_slot = source_mob.create_sound_slot(edit_rate=edit_rate)
-            source_slot.segment.length = total_frames
+            # Sound slot runs at 48000 EditRate
+            source_slot = source_mob.create_sound_slot(edit_rate=sample_rate)
+            source_slot.segment.length = audio_samples
             
-            # Add Timecode to Source Mob
-            src_tc_slot = source_mob.create_timeline_slot(edit_rate=edit_rate)
+            # Add Timecode to Source Mob (Timecode tracks run at video_edit_rate)
+            src_tc_slot = source_mob.create_timeline_slot(edit_rate=video_edit_rate)
             src_tc_clip = f.create.Timecode(int(round(fps)), drop=False)
             src_tc_clip.start = offset_frames
             src_tc_slot.segment = src_tc_clip
@@ -321,12 +326,12 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
             # 2. Master Mob (Represents imported clip)
             master_mob = f.create.MasterMob("Scene_Clips_Master")
             f.content.mobs.append(master_mob)
-            master_slot = master_mob.create_sound_slot(edit_rate=edit_rate)
-            master_clip = source_mob.create_source_clip(slot_id=source_slot.slot_id, start=0, length=total_frames)
+            master_slot = master_mob.create_sound_slot(edit_rate=sample_rate)
+            master_clip = source_mob.create_source_clip(slot_id=source_slot.slot_id, start=0, length=audio_samples)
             master_slot.segment.components.append(master_clip)
             
             # Add Timecode to Master Mob to stamp it
-            tc_slot = master_mob.create_timeline_slot(edit_rate=edit_rate)
+            tc_slot = master_mob.create_timeline_slot(edit_rate=video_edit_rate)
             tc_clip = f.create.Timecode(int(round(fps)), drop=False)
             tc_clip.start = offset_frames
             tc_slot.segment = tc_clip
@@ -334,29 +339,34 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
             # 3. Composition Mob (The Timeline/Track)
             comp_mob = f.create.CompositionMob("Scene Cuts Timeline")
             f.content.mobs.append(comp_mob)
-            comp_slot = comp_mob.create_sound_slot(edit_rate=edit_rate)
+            comp_slot = comp_mob.create_sound_slot(edit_rate=sample_rate)
             
             # Add Timecode to Composition Mob to stamp the sequence
-            comp_tc_slot = comp_mob.create_timeline_slot(edit_rate=edit_rate)
+            comp_tc_slot = comp_mob.create_timeline_slot(edit_rate=video_edit_rate)
             comp_tc_clip = f.create.Timecode(int(round(fps)), drop=False)
             comp_tc_clip.start = offset_frames
             comp_tc_slot.segment = comp_tc_clip
             
-            # Add all cuts
-            current_timeline_frame = 0
+            # Add all cuts with Sample-Frame Accumulation (fractional rounding)
+            current_timeline_sample = 0
             for frame, length, name in scenes:
+                # Calculate exact absolute start and end in samples
+                scene_start_sample = int(round((frame / fps) * sample_rate))
+                scene_end_sample = int(round(((frame + length) / fps) * sample_rate))
+                scene_sample_length = scene_end_sample - scene_start_sample
+                
                 # Fill any gap with silence/filler to maintain perfect absolute time sync
-                if frame > current_timeline_frame:
-                    gap_length = frame - current_timeline_frame
-                    filler = f.create.Filler("Sound", gap_length)
+                if scene_start_sample > current_timeline_sample:
+                    gap_samples = scene_start_sample - current_timeline_sample
+                    filler = f.create.Filler("Sound", gap_samples)
                     comp_slot.segment.components.append(filler)
                 
-                # Pro Tools allows clips of 0 length? Better ensure min length 1
-                length = max(1, length)
-                clip = master_mob.create_source_clip(slot_id=master_slot.slot_id, start=frame, length=length)
+                # Minimum 1 sample length
+                scene_sample_length = max(1, scene_sample_length)
+                clip = master_mob.create_source_clip(slot_id=master_slot.slot_id, start=scene_start_sample, length=scene_sample_length)
                 comp_slot.segment.components.append(clip)
                 
-                current_timeline_frame = frame + length
+                current_timeline_sample = scene_start_sample + scene_sample_length
                 
         success_msg = f"Step 2 Complete!\n\n1) MIDI Markers saved at:\n{midi_path}\n\n2) Empty Clip Track (AAF) saved at:\n{aaf_path}"
         log_cb(success_msg)
