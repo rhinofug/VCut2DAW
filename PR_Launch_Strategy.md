@@ -14,7 +14,10 @@ As an audio post professional, I got tired of manually spotting scene cuts and d
 
 So, I built **VCut2DAW**, a completely free and open-source pipeline tool designed specifically for Sound Editors and Assistants. It analyzes your video (or parses an EDL) and generates 100% compliant DAW markers (AAF and MIDI).
 
-**Why another converter? (The Technical Edge):**
+**Why did I build this? (Free Alternative to Commercial Tools):**
+While there are great commercial tools out there like HAL Audio's *Cut-It* (39€) or *EdiLoad* (+) that do similar things, I believe fundamental workflow utilities should be accessible to independent sound editors and assistants. So, I built a free, completely open-source alternative.
+
+**The Technical Edge:**
 * **Pro Tools AAF Strictness:** Most standard open-source AAFs fail to import in modern Pro Tools. VCut2DAW builds strictly compliant *SourceMob/MasterMob* hierarchies with valid *PCMDescriptors*. No more "Could not parse" errors.
 * **The "1-Frame Drift" Fix:** Standard AI cut detectors place the marker on the first *new* frame, causing a 1-frame offset compared to traditional NLE edits. This tool mathematically shifts all cuts 1 frame left, ensuring perfect frame-sync with the picture department.
 * **The "120 BPM" MIDI Sync Issue:** Importing standard MIDI markers often forces your DAW session to 120 BPM or scales incorrectly. VCut2DAW hardcodes the MIDI tick scale (	icks_per_beat = 12000), so a 01:00:00:00 timecode lands exactly at 1 hour, without messing up your tempo map.
@@ -78,4 +81,5 @@ F. Utku Gercik
 *   **Sound Design Discord**
 *   **REAPER Discord**
 *   **Hacker News (YCombinator)** -> Pitch as Show HN: VCut2DAW – Open-source video cut detection to Pro Tools AAF.
+
 
