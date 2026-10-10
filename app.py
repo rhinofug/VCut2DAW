@@ -247,9 +247,16 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
 
         # ---- MIDI MARKER GENERATION ----
         log_cb("Generating Frame-Accurate MIDI Marker file...")
-        mid = MidiFile()
+        mid = MidiFile(type=0)
         track = MidiTrack()
         mid.tracks.append(track)
+        
+        # Name the track so the DAW knows what to label it
+        track.append(MetaMessage('track_name', name='VCut2DAW Markers', time=0))
+        
+        # Insert a dummy zero-velocity note to force strict DAWs to recognize this as a valid MIDI track
+        track.append(mido.Message('note_on', note=0, velocity=0, time=0))
+        track.append(mido.Message('note_off', note=0, velocity=0, time=0))
         
         # Secret Watermark
         track.append(MetaMessage('text', text='VCut2DAW (c) Antigravity', time=0))
