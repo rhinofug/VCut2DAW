@@ -64,6 +64,8 @@ You are free to use, share, and modify this code for your personal or studio wor
 **Furkan Utku Gerçik**  
 Link: [https://rhinofug.github.io](https://rhinofug.github.io)  
 GitHub: [github.com/rhinofug/VCut2DAW](https://github.com/rhinofug/VCut2DAW)
+**Muhammed Tayyib Kol** (co-devoloper)
+Link: https://github.com/muhammedtkol-alt
 
 <a href="https://buymeacoffee.com/rhinofug" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 40px !important;width: 145px !important;" ></a>
  
