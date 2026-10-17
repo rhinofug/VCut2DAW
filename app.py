@@ -333,39 +333,50 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb,
         log_cb(f"Session Start Timecode parsed as {offset_frames} frames offset.")
 
         # ---- MIDI MARKER GENERATION ----
-        log_cb("Generating Frame-Accurate MIDI Marker file...")
-        mid = MidiFile(type=0)
-        track = MidiTrack()
-        mid.tracks.append(track)
+        log_cb("Generating Frame-Accurate MIDI Marker file (SMF Type 1, 960 PPQ)...")
+        mid = MidiFile(type=1)
         
-        # Name the track and set standard 4/4 Time Signature + 120 BPM Tempo
-        track.append(MetaMessage('track_name', name='VCut2DAW Markers', time=0))
-        track.append(MetaMessage('time_signature', numerator=4, denominator=4, clocks_per_click=24, notated_32nd_notes_per_beat=8, time=0))
-        track.append(MetaMessage('set_tempo', tempo=500000, time=0))
-        track.append(MetaMessage('text', text='VCut2DAW (c) Antigravity', time=0))
+        # Use Pro Tools native 960 PPQ at 120 BPM (500000 microseconds per beat = 1920 ticks/sec)
+        # Prevents 32-bit tick rescaling overflow on 01:00:00:00+ offsets in Pro Tools 2024/2025
+        mid.ticks_per_beat = 960
+        ticks_per_second = 1920
         
-        # Use 9600 PPQ (exact 10x multiple of Pro Tools native 960 PPQ) at 120 BPM
-        mid.ticks_per_beat = 9600
-        ticks_per_second = 19200
+        # Track 0: Standard SMF Type 1 Conductor Track (Tempo, Time Signature, Global Ruler Markers)
+        conductor_track = MidiTrack()
+        mid.tracks.append(conductor_track)
+        conductor_track.append(MetaMessage('track_name', name='Conductor', time=0))
+        conductor_track.append(MetaMessage('time_signature', numerator=4, denominator=4, clocks_per_click=24, notated_32nd_notes_per_beat=8, time=0))
+        conductor_track.append(MetaMessage('set_tempo', tempo=500000, time=0))
+        conductor_track.append(MetaMessage('text', text='VCut2DAW (c) Antigravity', time=0))
+        
+        # Track 1: Playable MIDI Track with Track Markers & Note Blips (Required by Pro Tools 2023.6 - 2025.12+)
+        note_track = MidiTrack()
+        mid.tracks.append(note_track)
+        note_track.append(MetaMessage('track_name', name='VCut2DAW Markers', time=0))
         
         scenes.sort(key=lambda x: x[0])
         
         # Add offset to all MIDI ticks so they drop at the requested timecode in Pro Tools
         offset_ticks = int(round((offset_frames / fps) * ticks_per_second))
         
-        last_tick = 0
-        for idx, (frame, length, name) in enumerate(scenes):
+        last_conductor_tick = 0
+        last_note_tick = 0
+        for frame, length, name in scenes:
             abs_tick = offset_ticks + int(round((frame / fps) * ticks_per_second))
-            delta_tick = max(0, abs_tick - last_tick)
-            track.append(MetaMessage('marker', text=name, time=delta_tick))
-            if idx == 0:
-                # Start a valid non-zero velocity dummy note at the first marker so strict DAWs
-                # (Pro Tools, Logic, Cubase) recognize a playable MIDI clip spanning the cuts.
-                track.append(mido.Message('note_on', note=60, velocity=1, time=0))
-            last_tick = abs_tick
-
-        if scenes:
-            track.append(mido.Message('note_off', note=60, velocity=0, time=1))
+            
+            # 1) Global Ruler Marker on Track 0 (Conductor Track)
+            c_delta = max(0, abs_tick - last_conductor_tick)
+            conductor_track.append(MetaMessage('marker', text=name, time=c_delta))
+            last_conductor_tick = abs_tick
+            
+            # 2) Track Marker + 1-Frame Note Blip on Track 1 (MIDI Track)
+            n_delta = max(0, abs_tick - last_note_tick)
+            note_track.append(MetaMessage('marker', text=name, time=n_delta))
+            note_track.append(mido.Message('note_on', channel=0, note=60, velocity=64, time=0))
+            scene_ticks = max(2, int(round((length / fps) * ticks_per_second)))
+            note_dur = min(40, scene_ticks - 1)
+            note_track.append(mido.Message('note_off', channel=0, note=60, velocity=0, time=note_dur))
+            last_note_tick = abs_tick + note_dur
 
         mid.save(midi_path)
         
