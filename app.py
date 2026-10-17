@@ -23,6 +23,37 @@ else:
     APP_DIR = os.path.dirname(os.path.abspath(__file__))
     
 DEFAULT_OUT_DIR = os.path.join(APP_DIR, "VCut_Exports")
+_auto_proceed_step2 = False
+
+def snap_fps(raw_fps):
+    """Snaps a measured or metadata FPS value to exact broadcast standard framerates."""
+    if not raw_fps or raw_fps <= 0:
+        return 25.0
+    standards = [
+        (23.976, 24000.0 / 1001.0),
+        (24.0, 24.0),
+        (25.0, 25.0),
+        (29.97, 30000.0 / 1001.0),
+        (30.0, 30.0),
+        (47.952, 48000.0 / 1001.0),
+        (48.0, 48.0),
+        (50.0, 50.0),
+        (59.94, 60000.0 / 1001.0),
+        (60.0, 60.0),
+    ]
+    closest_nominal, closest_exact = min(standards, key=lambda s: abs(raw_fps - s[1]))
+    if abs(raw_fps - closest_exact) < 0.05 or abs(raw_fps - closest_nominal) < 0.05:
+        return closest_exact
+    return round(float(raw_fps), 3)
+
+def format_fps_display(fps_val):
+    if abs(fps_val - 24000.0 / 1001.0) < 0.01:
+        return "23.976 (24000/1001)"
+    if abs(fps_val - 30000.0 / 1001.0) < 0.01:
+        return "29.97 (30000/1001)"
+    if abs(fps_val - 60000.0 / 1001.0) < 0.01:
+        return "59.94 (60000/1001)"
+    return f"{round(fps_val, 3)}"
 
 def log_message(msg):
     log_area.configure(state="normal")
@@ -43,7 +74,12 @@ def select_video_file():
 def select_csv_file():
     filepath = filedialog.askopenfilename(
         title="Select CSV/EDL File",
-        filetypes=(("CSV files", "*.csv"), ("All files", "*.*"))
+        filetypes=(
+            ("CSV & EDL files", "*.csv *.edl"),
+            ("CSV files", "*.csv"),
+            ("EDL files", "*.edl"),
+            ("All files", "*.*")
+        )
     )
     if filepath:
         csv_entry.delete(0, tk.END)
@@ -104,7 +140,7 @@ def run_step1_process(video_path, csv_out_dir, success_msg, expected_csv):
                 log_area.after(100, lambda: log_message(">>> Auto-Proceeding to Step 2..."))
                 btn_convert.after(500, start_convert)
             else:
-                messagebox.showinfo("Success", success_msg)
+                log_area.after(0, lambda: messagebox.showinfo("Success", success_msg))
         except SystemExit as e:
             if e.code == 0:
                 log_area.after(0, log_message, success_msg)
@@ -112,13 +148,12 @@ def run_step1_process(video_path, csv_out_dir, success_msg, expected_csv):
                     csv_entry.after(0, lambda: csv_entry.delete(0, tk.END))
                     csv_entry.after(0, lambda: csv_entry.insert(0, expected_csv))
                 
-                
                 if _auto_proceed_step2:
                     _auto_proceed_step2 = False
                     log_area.after(100, log_message, ">>> Auto-Proceeding to Step 2...")
                     btn_convert.after(500, start_convert)
                 else:
-                    messagebox.showinfo("Success", success_msg)
+                    log_area.after(0, lambda: messagebox.showinfo("Success", success_msg))
             else:
                 log_area.after(0, log_message, f"PROCESS EXITED WITH CODE: {e.code}")
         finally:
@@ -127,11 +162,12 @@ def run_step1_process(video_path, csv_out_dir, success_msg, expected_csv):
             sys.argv = old_argv
 
     except Exception as e:
-        log_area.after(0, log_message, f"EXCEPTION: {str(e)}")
-        messagebox.showerror("Error", str(e))
+        err_str = str(e)
+        log_area.after(0, log_message, f"EXCEPTION: {err_str}")
+        log_area.after(0, lambda: messagebox.showerror("Error", err_str))
     finally:
-        btn_detect.configure(state="normal")
-        btn_convert.configure(state="normal")
+        log_area.after(0, lambda: btn_detect.configure(state="normal"))
+        log_area.after(0, lambda: btn_convert.configure(state="normal"))
 
 def start_detect():
     video_path = video_entry.get()
@@ -168,17 +204,42 @@ def parse_timecode_to_frames(tc_str, fps):
         pass
     return 0
 
-def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb):
+def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb, video_path="", fps_override="Auto"):
     try:
         log_cb(f"Reading scenes from {os.path.basename(csv_path)}...")
         scenes = []
-        fps = 25.0
+        fps = None
+        
+        # 1. Check user FPS override from UI dropdown
+        if fps_override and not str(fps_override).startswith("Auto"):
+            try:
+                fps = snap_fps(float(fps_override))
+                log_cb(f"Using manual FPS override: {format_fps_display(fps)}")
+            except:
+                fps = None
+
+        # 2. If Auto, try reading exact FPS from the selected video file via OpenCV
+        if fps is None and video_path and os.path.exists(video_path):
+            try:
+                import cv2
+                cap = cv2.VideoCapture(video_path)
+                if cap.isOpened():
+                    vid_fps = cap.get(cv2.CAP_PROP_FPS)
+                    cap.release()
+                    if vid_fps and vid_fps > 0:
+                        fps = snap_fps(vid_fps)
+                        log_cb(f"Detected FPS from video file: {format_fps_display(fps)}")
+            except Exception:
+                pass
         
         # Check if CSV or EDL
         is_edl = csv_path.lower().endswith('.edl')
         raw_scenes = []
         
         if is_edl:
+            if fps is None:
+                fps = 25.0
+                log_cb("Note: EDL has no embedded framerate; defaulting to 25.0 FPS (use FPS selector to override).")
             with open(csv_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
                 scene_count = 1
@@ -194,11 +255,19 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
                                 in_frames = parse_timecode_to_frames(rec_in, fps)
                                 out_frames = parse_timecode_to_frames(rec_out, fps)
                                 length = out_frames - in_frames
-                                raw_scenes.append([in_frames, length, f"VCut {scene_count}"])
-                                scene_count += 1
+                                if length > 0:
+                                    raw_scenes.append([in_frames, length, f"VCut {scene_count}"])
+                                    scene_count += 1
                             except:
                                 pass
+            # Normalize EDL start frames so the first event begins at frame 0
+            # (prevents double-offsetting when EDL record in already starts at 01:00:00:00)
+            if raw_scenes:
+                edl_start_frame = raw_scenes[0][0]
+                for s in raw_scenes:
+                    s[0] = max(0, s[0] - edl_start_frame)
         else:
+            csv_fps_candidates = []
             with open(csv_path, 'r', encoding='utf-8') as f:
                 reader = csv.reader(f)
                 for row in reader:
@@ -207,7 +276,7 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
                         if 'Frame Rate:' in row[0]:
                             try:
                                 fps_str = row[0].split('Frame Rate:')[1].strip().split(' ')[0]
-                                fps = float(fps_str)
+                                fps = snap_fps(float(fps_str))
                             except: pass
                         continue
                     
@@ -216,15 +285,33 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
                         start_frame = int(row[1])
                         length = int(row[7])
                         raw_scenes.append([start_frame, length, f"VCut {scene_num}"])
+                        # Calculate FPS from PySceneDetect CSV columns:
+                        # row[4] = End Frame, row[6] = End Time (seconds), row[7] = Length (frames), row[9] = Length (seconds)
+                        if len(row) > 6 and float(row[6]) > 0:
+                            csv_fps_candidates.append((int(row[4]), float(row[6])))
+                        elif len(row) > 9 and float(row[9]) > 0:
+                            csv_fps_candidates.append((int(row[7]), float(row[9])))
                     except: continue
+            if fps is None:
+                if csv_fps_candidates:
+                    # Use the row with the largest frame count (last scene's End Frame / End Time) for highest accuracy
+                    best_frames, best_seconds = max(csv_fps_candidates, key=lambda x: x[0])
+                    if best_seconds > 0:
+                        fps = snap_fps(best_frames / best_seconds)
+                        log_cb(f"Calculated FPS from CSV timing data: {format_fps_display(fps)}")
+                if fps is None:
+                    fps = 25.0
 
         if not raw_scenes:
             raise ValueError("No scenes found in the CSV or EDL file. Is the format correct?")
 
-        # 1-Frame Cut Offset: Shift all cuts 1 frame back as requested
-        for i in range(1, len(raw_scenes)):
-            if raw_scenes[i][0] > 0:
-                raw_scenes[i][0] -= 1
+        # PySceneDetect CSVs use 1-based Start Frame numbering (Scene 1 starts at frame 1).
+        # Convert all CSV start frames (including Scene 1 at index 0) to 0-based frame indices.
+        # Do NOT shift EDL cuts, which are already exact NLE timeline frame numbers.
+        if not is_edl:
+            for i in range(len(raw_scenes)):
+                if raw_scenes[i][0] > 0:
+                    raw_scenes[i][0] -= 1
                 
         # Recalculate contiguous lengths
         scenes = []
@@ -239,7 +326,7 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
             if length > 0:
                 scenes.append((frame, length, name))
 
-        log_cb(f"Found {len(scenes)} scenes. Video Framerate: {fps}")
+        log_cb(f"Found {len(scenes)} scenes. Video Framerate: {format_fps_display(fps)}")
         
         # Calculate Timecode Offset
         offset_frames = parse_timecode_to_frames(tc_string, fps)
@@ -251,33 +338,34 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
         track = MidiTrack()
         mid.tracks.append(track)
         
-        # Name the track so the DAW knows what to label it
+        # Name the track and set standard 4/4 Time Signature + 120 BPM Tempo
         track.append(MetaMessage('track_name', name='VCut2DAW Markers', time=0))
-        
-        # Insert a dummy zero-velocity note to force strict DAWs to recognize this as a valid MIDI track
-        track.append(mido.Message('note_on', note=0, velocity=0, time=0))
-        track.append(mido.Message('note_off', note=0, velocity=0, time=0))
-        
-        # Secret Watermark
+        track.append(MetaMessage('time_signature', numerator=4, denominator=4, clocks_per_click=24, notated_32nd_notes_per_beat=8, time=0))
+        track.append(MetaMessage('set_tempo', tempo=500000, time=0))
         track.append(MetaMessage('text', text='VCut2DAW (c) Antigravity', time=0))
         
-        # We assume Pro Tools default 120 BPM (500000 microseconds per beat) 
-        # so the offset scales correctly without needing tempo map import!
-        track.append(MetaMessage('set_tempo', tempo=500000, time=0))
-        mid.ticks_per_beat = 12000
-        ticks_per_second = 24000
+        # Use 9600 PPQ (exact 10x multiple of Pro Tools native 960 PPQ) at 120 BPM
+        mid.ticks_per_beat = 9600
+        ticks_per_second = 19200
         
         scenes.sort(key=lambda x: x[0])
         
-        # Add offset to all MIDI ticks so they drop exactly at the right timecode in Pro Tools
+        # Add offset to all MIDI ticks so they drop at the requested timecode in Pro Tools
         offset_ticks = int(round((offset_frames / fps) * ticks_per_second))
         
         last_tick = 0
-        for frame, length, name in scenes:
+        for idx, (frame, length, name) in enumerate(scenes):
             abs_tick = offset_ticks + int(round((frame / fps) * ticks_per_second))
-            delta_tick = abs_tick - last_tick
+            delta_tick = max(0, abs_tick - last_tick)
             track.append(MetaMessage('marker', text=name, time=delta_tick))
+            if idx == 0:
+                # Start a valid non-zero velocity dummy note at the first marker so strict DAWs
+                # (Pro Tools, Logic, Cubase) recognize a playable MIDI clip spanning the cuts.
+                track.append(mido.Message('note_on', note=60, velocity=1, time=0))
             last_tick = abs_tick
+
+        if scenes:
+            track.append(mido.Message('note_off', note=60, velocity=0, time=1))
 
         mid.save(midi_path)
         
@@ -286,9 +374,10 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb)
         import aaf2
         
         # Determine exact video edit rate for Timecode metadata
-        video_edit_rate = int(fps) if isinstance(fps, float) and fps.is_integer() else fps
-        if abs(fps - 23.976) < 0.001: video_edit_rate = aaf2.rational.AAFRational(24000, 1001)
-        elif abs(fps - 29.97) < 0.001: video_edit_rate = aaf2.rational.AAFRational(30000, 1001)
+        video_edit_rate = int(fps) if isinstance(fps, float) and fps.is_integer() else round(fps, 3)
+        if abs(fps - 23.976) < 0.01: video_edit_rate = aaf2.rational.AAFRational(24000, 1001)
+        elif abs(fps - 29.97) < 0.01: video_edit_rate = aaf2.rational.AAFRational(30000, 1001)
+        elif abs(fps - 59.94) < 0.01: video_edit_rate = aaf2.rational.AAFRational(60000, 1001)
         
         # Audio operates perfectly at Sample Rate (48000 Hz) to avoid fractional frame drift
         sample_rate = 48000
@@ -424,10 +513,17 @@ def start_convert():
     btn_detect.configure(state="disabled")
     btn_convert.configure(state="disabled")
     
+    video_path = video_entry.get().strip()
+    fps_override = fps_option.get() if 'fps_option' in globals() else "Auto"
+    
     def cb_log(m): log_area.after(0, log_message, m)
     def cb_done(m, s): log_area.after(0, lambda: on_step2_done(m, s))
     
-    threading.Thread(target=run_step2_process, args=(csv_path, output_midi, output_aaf, tc_string, cb_log, cb_done), daemon=True).start()
+    threading.Thread(
+        target=run_step2_process,
+        args=(csv_path, output_midi, output_aaf, tc_string, cb_log, cb_done, video_path, fps_override),
+        daemon=True
+    ).start()
 
 
 def start_full_run():
@@ -464,7 +560,7 @@ if __name__ == "__main__":
         about_text = (
             "VCut2DAW v1.0\n"
             "A Video to Scene Markers tool for DAWs (Pro Tools, Nuendo, Logic, etc.)\n\n"
-            "Developed by: F.Utku Gercik\n"
+            "Developed by: F.Utku Gercik & Muhammed Tayyib Kol\n"
             "Email: utkugercik@gmail.com\n"
             "GitHub: https://github.com/rhinofug/VCut2DAW\n\n"
             "License: CC BY-NC 4.0 (Non-Commercial)\n"
@@ -508,16 +604,26 @@ if __name__ == "__main__":
     csv_entry = ctk.CTkEntry(csv_file_frame)
     csv_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
     
-    csv_browse_btn = ctk.CTkButton(csv_file_frame, text="Browse CSV...", command=select_csv_file, width=120)
+    csv_browse_btn = ctk.CTkButton(csv_file_frame, text="Browse CSV/EDL...", command=select_csv_file, width=120)
     csv_browse_btn.pack(side=tk.RIGHT)
     
     tc_frame = ctk.CTkFrame(step2_frame, fg_color="transparent")
     tc_frame.pack(fill=tk.X, padx=10, pady=5)
-    tc_label = ctk.CTkLabel(tc_frame, text="Session Start Timecode (e.g. 01:00:00:00):")
+    tc_label = ctk.CTkLabel(tc_frame, text="Session Start TC:")
     tc_label.pack(side=tk.LEFT)
-    tc_entry = ctk.CTkEntry(tc_frame, width=150, justify="center")
+    tc_entry = ctk.CTkEntry(tc_frame, width=130, justify="center")
     tc_entry.insert(0, "01:00:00:00")
-    tc_entry.pack(side=tk.LEFT, padx=10)
+    tc_entry.pack(side=tk.LEFT, padx=(8, 20))
+    
+    fps_label = ctk.CTkLabel(tc_frame, text="Frame Rate (FPS):")
+    fps_label.pack(side=tk.LEFT)
+    fps_option = ctk.CTkOptionMenu(
+        tc_frame,
+        values=["Auto (Detect)", "23.976", "24", "25", "29.97", "30", "50", "59.94", "60"],
+        width=130
+    )
+    fps_option.set("Auto (Detect)")
+    fps_option.pack(side=tk.LEFT, padx=8)
     
     btn_convert = ctk.CTkButton(step2_frame, text="Step 2: Generate MIDI & AAF", command=start_convert, fg_color="#2196F3", hover_color="#1976D2", font=("Arial", 14, "bold"), height=40)
     btn_convert.pack(fill=tk.X, padx=10, pady=(5, 10))
