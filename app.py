@@ -101,18 +101,13 @@ class RedirectStdout:
     def flush(self):
         pass
 
-def run_step1_process(video_path, csv_out_dir, success_msg, expected_csv):
+def run_step1_process(video_path, csv_out_dir, success_msg, expected_csv, auto_step2=False, step2_params=None):
     global _auto_proceed_step2
     """
     Analyzes a video file to detect scene cuts and exports a CSV file.
     Uses PySceneDetect with adaptive content detection.
-    
-    Args:
-        video_path (str): Absolute path to the input video file.
-        csv_out_dir (str): Absolute directory path where the CSV should be saved.
-        success_msg (str): Message to display upon success.
-        expected_csv (str): The expected output path of the CSV file.
     """
+    proceeding_to_step2 = False
     try:
         log_area.after(0, log_message, f"Running PySceneDetect in-process on: {video_path}")
         
@@ -128,32 +123,13 @@ def run_step1_process(video_path, csv_out_dir, success_msg, expected_csv):
         
         sys.argv = ["scenedetect", "-i", video_path, "-o", csv_out_dir, "detect-content", "list-scenes"]
         
+        step1_ok = False
         try:
             scenedetect_main()
-            log_area.after(0, log_message, success_msg)
-            if os.path.exists(expected_csv):
-                csv_entry.after(0, lambda: csv_entry.delete(0, tk.END))
-                csv_entry.after(0, lambda: csv_entry.insert(0, expected_csv))
-            
-            if _auto_proceed_step2:
-                _auto_proceed_step2 = False
-                log_area.after(100, lambda: log_message(">>> Auto-Proceeding to Step 2..."))
-                btn_convert.after(500, start_convert)
-            else:
-                log_area.after(0, lambda: messagebox.showinfo("Success", success_msg))
+            step1_ok = True
         except SystemExit as e:
-            if e.code == 0:
-                log_area.after(0, log_message, success_msg)
-                if os.path.exists(expected_csv):
-                    csv_entry.after(0, lambda: csv_entry.delete(0, tk.END))
-                    csv_entry.after(0, lambda: csv_entry.insert(0, expected_csv))
-                
-                if _auto_proceed_step2:
-                    _auto_proceed_step2 = False
-                    log_area.after(100, log_message, ">>> Auto-Proceeding to Step 2...")
-                    btn_convert.after(500, start_convert)
-                else:
-                    log_area.after(0, lambda: messagebox.showinfo("Success", success_msg))
+            if e.code in (0, None):
+                step1_ok = True
             else:
                 log_area.after(0, log_message, f"PROCESS EXITED WITH CODE: {e.code}")
         finally:
@@ -161,17 +137,42 @@ def run_step1_process(video_path, csv_out_dir, success_msg, expected_csv):
             sys.stderr = old_stderr
             sys.argv = old_argv
 
+        if step1_ok:
+            log_area.after(0, log_message, success_msg)
+            if os.path.exists(expected_csv):
+                def _set_csv_entry(path=expected_csv):
+                    csv_entry.delete(0, tk.END)
+                    csv_entry.insert(0, path)
+                log_area.after(0, _set_csv_entry)
+            
+            should_proceed = auto_step2 or _auto_proceed_step2
+            _auto_proceed_step2 = False
+            if should_proceed and os.path.exists(expected_csv) and step2_params:
+                proceeding_to_step2 = True
+                log_area.after(0, log_message, ">>> Auto-Proceeding to Step 2...")
+                output_midi, output_aaf, tc_string, cb_log, cb_done, fps_override = step2_params
+                run_step2_process(expected_csv, output_midi, output_aaf, tc_string, cb_log, cb_done, video_path, fps_override)
+            else:
+                log_area.after(0, lambda: messagebox.showinfo("Success", success_msg))
+
     except Exception as e:
+        _auto_proceed_step2 = False
         err_str = str(e)
         log_area.after(0, log_message, f"EXCEPTION: {err_str}")
         log_area.after(0, lambda: messagebox.showerror("Error", err_str))
     finally:
-        log_area.after(0, lambda: btn_detect.configure(state="normal"))
-        log_area.after(0, lambda: btn_convert.configure(state="normal"))
+        if not proceeding_to_step2:
+            log_area.after(0, lambda: btn_detect.configure(state="normal"))
+            log_area.after(0, lambda: btn_convert.configure(state="normal"))
 
-def start_detect():
-    video_path = video_entry.get()
+def start_detect(auto_step2=False):
+    global _auto_proceed_step2
+    if not auto_step2:
+        _auto_proceed_step2 = False
+
+    video_path = video_entry.get().strip()
     if not video_path or not os.path.exists(video_path):
+        _auto_proceed_step2 = False
         messagebox.showerror("Error", "Please select a valid video file.")
         return
 
@@ -190,7 +191,26 @@ def start_detect():
     expected_csv_name = f"{video_name_no_ext}-Scenes.csv"
     csv_full_path = os.path.join(csv_out_dir, expected_csv_name)
 
-    threading.Thread(target=run_step1_process, args=(video_path, csv_out_dir, "Step 1 Complete: Scene list (CSV) generated successfully.", csv_full_path), daemon=True).start()
+    step2_params = None
+    if auto_step2 or _auto_proceed_step2:
+        tc_string = tc_entry.get().strip() or "01:00:00:00"
+        midi_out_dir = os.path.join(out_base, "MIDI")
+        aaf_out_dir = os.path.join(out_base, "AAF")
+        os.makedirs(midi_out_dir, exist_ok=True)
+        os.makedirs(aaf_out_dir, exist_ok=True)
+        proj_name = proj_name_entry.get().strip() or video_name_no_ext
+        output_midi = os.path.join(midi_out_dir, f"{proj_name}_Markers.mid")
+        output_aaf = os.path.join(aaf_out_dir, f"{proj_name}_ClipTrack.aaf")
+        fps_override = fps_option.get() if 'fps_option' in globals() else "Auto"
+        def cb_log(m): log_area.after(0, log_message, m)
+        def cb_done(m, s): log_area.after(0, lambda: on_step2_done(m, s))
+        step2_params = (output_midi, output_aaf, tc_string, cb_log, cb_done, fps_override)
+
+    threading.Thread(
+        target=run_step1_process,
+        args=(video_path, csv_out_dir, "Step 1 Complete: Scene list (CSV) generated successfully.", csv_full_path, auto_step2, step2_params),
+        daemon=True
+    ).start()
 
 def parse_timecode_to_frames(tc_str, fps):
     try:
@@ -539,9 +559,8 @@ def start_convert():
 
 def start_full_run():
     global _auto_proceed_step2
-    
     _auto_proceed_step2 = True
-    start_detect()
+    start_detect(auto_step2=True)
 
 def resource_path(relative_path):
     try:
