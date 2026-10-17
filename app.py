@@ -571,9 +571,11 @@ if __name__ == "__main__":
         about_text = (
             "VCut2DAW v1.0\n"
             "A Video to Scene Markers tool for DAWs (Pro Tools, Nuendo, Logic, etc.)\n\n"
-            "Developed by: F.Utku Gercik & Muhammed Tayyib Kol\n"
+            "Developed by: F.Utku Gercik\n"
+            "Co-Dev: Muhammed Kol\n"
             "Email: utkugercik@gmail.com\n"
             "GitHub: https://github.com/rhinofug/VCut2DAW\n\n"
+            "Thanks to early testers: Çağlar \"Çakan\" Çakmak, Can Doğduaslan, Ömür Öztürk, Çağdaş Yarman\n\n"
             "License: CC BY-NC 4.0 (Non-Commercial)\n"
             "(c) 2026 - Built with Antigravity"
         )
@@ -691,7 +693,7 @@ if __name__ == "__main__":
     coffee_btn = ctk.CTkButton(frame, text="☕ Buy me a coffee", command=open_coffee, fg_color="#FFDD00", hover_color="#FFC300", text_color="black", font=("Arial", 12, "bold"), width=150, height=30)
     coffee_btn.pack(side=tk.BOTTOM, pady=(0, 5))
     
-    footer = ctk.CTkLabel(frame, text="Developed by F.Utku Gercik | VCut2DAW v1.0 | License: CC BY-NC 4.0 | (i) Click for About", text_color="gray", font=("Arial", 10), cursor="hand2")
+    footer = ctk.CTkLabel(frame, text="Developed by F.Utku Gercik | Co-Dev: Muhammed Kol | VCut2DAW v1.0 | License: CC BY-NC 4.0 | (i) Click for About", text_color="gray", font=("Arial", 10), cursor="hand2")
     footer.pack(side=tk.BOTTOM, pady=(10, 0))
     footer.bind("<Button-1>", lambda e: show_about())
     
