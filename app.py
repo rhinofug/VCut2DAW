@@ -22,8 +22,18 @@ if getattr(sys, 'frozen', False):
 else:
     APP_DIR = os.path.dirname(os.path.abspath(__file__))
     
-DEFAULT_OUT_DIR = os.path.join(APP_DIR, "VCut_Exports")
+EXPORT_FOLDER_NAME = "VCut2DAW_Exports"
+DEFAULT_OUT_DIR = os.path.join(os.path.expanduser("~"), "Desktop", EXPORT_FOLDER_NAME)
 _auto_proceed_step2 = False
+_user_custom_out_dir = False
+
+def ensure_exports_folder(base_dir):
+    """Ensures all exports (CSV, MIDI, AAF) are placed inside a parent VCut2DAW_Exports folder."""
+    base_dir = os.path.normpath(base_dir.strip())
+    folder_name = os.path.basename(base_dir)
+    if folder_name.lower() in ("vcut2daw_exports", "vcut_exports"):
+        return base_dir
+    return os.path.join(base_dir, EXPORT_FOLDER_NAME)
 
 def snap_fps(raw_fps):
     """Snaps a measured or metadata FPS value to exact broadcast standard framerates."""
@@ -70,6 +80,16 @@ def select_video_file():
         video_entry.delete(0, tk.END)
         video_entry.insert(0, filepath)
         log_message(f"Selected video: {filepath}")
+        
+        base_name = os.path.splitext(os.path.basename(filepath))[0]
+        proj_name_entry.delete(0, tk.END)
+        proj_name_entry.insert(0, base_name)
+        
+        if not _user_custom_out_dir:
+            auto_out = ensure_exports_folder(os.path.dirname(filepath))
+            output_entry.delete(0, tk.END)
+            output_entry.insert(0, auto_out)
+            log_message(f"Output folder set next to video: {auto_out}")
 
 def select_csv_file():
     filepath = filedialog.askopenfilename(
@@ -91,6 +111,16 @@ def select_csv_file():
             base_name = base_name.replace("-Scenes", "")
         proj_name_entry.delete(0, tk.END)
         proj_name_entry.insert(0, base_name)
+        
+        if not _user_custom_out_dir:
+            csv_dir = os.path.dirname(filepath)
+            if os.path.basename(csv_dir).lower() == "csv":
+                auto_out = ensure_exports_folder(os.path.dirname(csv_dir))
+            else:
+                auto_out = ensure_exports_folder(csv_dir)
+            output_entry.delete(0, tk.END)
+            output_entry.insert(0, auto_out)
+            log_message(f"Output folder set to: {auto_out}")
 
 class RedirectStdout:
     def __init__(self, log_cb):
@@ -164,6 +194,7 @@ def run_step1_process(video_path, csv_out_dir, success_msg, expected_csv, auto_s
         if not proceeding_to_step2:
             log_area.after(0, lambda: btn_detect.configure(state="normal"))
             log_area.after(0, lambda: btn_convert.configure(state="normal"))
+            log_area.after(0, lambda: btn_full_run.configure(state="normal"))
 
 def start_detect(auto_step2=False):
     global _auto_proceed_step2
@@ -178,13 +209,18 @@ def start_detect(auto_step2=False):
 
     out_base = output_entry.get().strip()
     if not out_base:
-        out_base = DEFAULT_OUT_DIR
+        out_base = ensure_exports_folder(os.path.dirname(video_path))
+    else:
+        out_base = ensure_exports_folder(out_base)
+    output_entry.delete(0, tk.END)
+    output_entry.insert(0, out_base)
     
     csv_out_dir = os.path.join(out_base, "CSV")
     os.makedirs(csv_out_dir, exist_ok=True)
 
     btn_detect.configure(state="disabled")
     btn_convert.configure(state="disabled")
+    btn_full_run.configure(state="disabled")
     
     video_filename = os.path.basename(video_path)
     video_name_no_ext = os.path.splitext(video_filename)[0]
@@ -507,13 +543,14 @@ def run_step2_process(csv_path, midi_path, aaf_path, tc_string, log_cb, done_cb,
 def on_step2_done(msg, success):
     btn_detect.configure(state="normal")
     btn_convert.configure(state="normal")
+    btn_full_run.configure(state="normal")
     if success:
         messagebox.showinfo("Success", msg)
     else:
         messagebox.showerror("Error", msg)
 
 def start_convert():
-    csv_path = csv_entry.get()
+    csv_path = csv_entry.get().strip()
     if not csv_path or not os.path.exists(csv_path):
         messagebox.showerror("Error", "Please select a valid CSV/EDL file first.")
         return
@@ -524,7 +561,15 @@ def start_convert():
         
     out_base = output_entry.get().strip()
     if not out_base:
-        out_base = DEFAULT_OUT_DIR
+        csv_dir = os.path.dirname(csv_path)
+        if os.path.basename(csv_dir).lower() == "csv":
+            out_base = ensure_exports_folder(os.path.dirname(csv_dir))
+        else:
+            out_base = ensure_exports_folder(csv_dir)
+    else:
+        out_base = ensure_exports_folder(out_base)
+    output_entry.delete(0, tk.END)
+    output_entry.insert(0, out_base)
         
     midi_out_dir = os.path.join(out_base, "MIDI")
     aaf_out_dir = os.path.join(out_base, "AAF")
@@ -543,6 +588,7 @@ def start_convert():
 
     btn_detect.configure(state="disabled")
     btn_convert.configure(state="disabled")
+    btn_full_run.configure(state="disabled")
     
     video_path = video_entry.get().strip()
     fps_override = fps_option.get() if 'fps_option' in globals() else "Auto"
@@ -577,8 +623,8 @@ if __name__ == "__main__":
 
     root = ctk.CTk()
     root.title("VCut2DAW - Video to Scene Markers for DAWs | by F.Utku Gercik")
-    root.geometry("700x740")
-    root.minsize(700, 740)
+    root.geometry("720x720")
+    root.minsize(700, 680)
     root.resizable(True, True)
     
     try:
@@ -600,109 +646,156 @@ if __name__ == "__main__":
         )
         messagebox.showinfo("About VCut2DAW", about_text)
     
-    
-    
     frame = ctk.CTkFrame(root, corner_radius=10)
     frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
     
-    # ---- STEP 1 SECTION ----
-    step1_frame = ctk.CTkFrame(frame, corner_radius=8)
-    step1_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+    # ---- 1. INPUT VIDEO SECTION ----
+    input_frame = ctk.CTkFrame(frame, corner_radius=8)
+    input_frame.pack(fill=tk.X, padx=10, pady=(10, 8))
     
-    ctk.CTkLabel(step1_frame, text="Phase 1: Video Analysis (Creates CSV)", font=("Arial", 14, "bold")).pack(anchor="w", padx=10, pady=(10, 0))
+    ctk.CTkLabel(input_frame, text="1. Select Input Video", font=("Arial", 14, "bold")).pack(anchor="w", padx=12, pady=(8, 2))
     
-    video_file_frame = ctk.CTkFrame(step1_frame, fg_color="transparent")
-    video_file_frame.pack(fill=tk.X, padx=10, pady=5)
+    video_file_frame = ctk.CTkFrame(input_frame, fg_color="transparent")
+    video_file_frame.pack(fill=tk.X, padx=12, pady=(2, 10))
     
-    video_entry = ctk.CTkEntry(video_file_frame)
+    video_entry = ctk.CTkEntry(video_file_frame, placeholder_text="Select a video file (.mp4, .mov, .mkv, .avi)...")
     video_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
     
-    video_browse_btn = ctk.CTkButton(video_file_frame, text="Browse Video...", command=select_video_file, width=120)
+    video_browse_btn = ctk.CTkButton(video_file_frame, text="Browse Video...", command=select_video_file, width=130)
     video_browse_btn.pack(side=tk.RIGHT)
     
-    btn_detect = ctk.CTkButton(step1_frame, text="Step 1: Detect Scenes", command=start_detect, fg_color="#2196F3", hover_color="#1976D2", font=("Arial", 14, "bold"), height=40)
-    btn_detect.pack(fill=tk.X, padx=10, pady=(5, 10))
+    # ---- 2. OUTPUT & SESSION SETTINGS SECTION ----
+    settings_frame = ctk.CTkFrame(frame, corner_radius=8)
+    settings_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
     
+    ctk.CTkLabel(settings_frame, text="2. Output Folder & DAW Session Settings", font=("Arial", 14, "bold")).pack(anchor="w", padx=12, pady=(8, 4))
     
-    # ---- STEP 2 SECTION ----
-    step2_frame = ctk.CTkFrame(frame, corner_radius=8)
-    step2_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+    out_file_frame = ctk.CTkFrame(settings_frame, fg_color="transparent")
+    out_file_frame.pack(fill=tk.X, padx=12, pady=4)
+    ctk.CTkLabel(out_file_frame, text="Output Folder:", width=110, anchor="w").pack(side=tk.LEFT)
     
-    ctk.CTkLabel(step2_frame, text="Phase 2: Convert to DAW (Creates MIDI & AAF)", font=("Arial", 14, "bold")).pack(anchor="w", padx=10, pady=(10, 0))
+    output_entry = ctk.CTkEntry(out_file_frame, placeholder_text="Auto: <Video Folder>/VCut2DAW_Exports")
+    output_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 10))
     
-    csv_file_frame = ctk.CTkFrame(step2_frame, fg_color="transparent")
-    csv_file_frame.pack(fill=tk.X, padx=10, pady=5)
+    def select_output_dir():
+        global _user_custom_out_dir
+        dirpath = filedialog.askdirectory(title="Select Output Folder")
+        if dirpath:
+            _user_custom_out_dir = True
+            wrapped_dir = ensure_exports_folder(dirpath)
+            output_entry.delete(0, tk.END)
+            output_entry.insert(0, wrapped_dir)
+            log_message(f"Output folder set to: {wrapped_dir}")
     
-    csv_entry = ctk.CTkEntry(csv_file_frame)
-    csv_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+    out_browse_btn = ctk.CTkButton(out_file_frame, text="Browse Folder...", command=select_output_dir, width=130)
+    out_browse_btn.pack(side=tk.RIGHT)
     
-    csv_browse_btn = ctk.CTkButton(csv_file_frame, text="Browse CSV/EDL...", command=select_csv_file, width=120)
-    csv_browse_btn.pack(side=tk.RIGHT)
+    proj_name_frame = ctk.CTkFrame(settings_frame, fg_color="transparent")
+    proj_name_frame.pack(fill=tk.X, padx=12, pady=4)
+    ctk.CTkLabel(proj_name_frame, text="Project Prefix:", width=110, anchor="w").pack(side=tk.LEFT)
+    proj_name_entry = ctk.CTkEntry(proj_name_frame, placeholder_text="Auto-filled from Video / CSV / EDL filename")
+    proj_name_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
     
-    tc_frame = ctk.CTkFrame(step2_frame, fg_color="transparent")
-    tc_frame.pack(fill=tk.X, padx=10, pady=5)
-    tc_label = ctk.CTkLabel(tc_frame, text="Session Start TC:")
+    tc_frame = ctk.CTkFrame(settings_frame, fg_color="transparent")
+    tc_frame.pack(fill=tk.X, padx=12, pady=(4, 10))
+    tc_label = ctk.CTkLabel(tc_frame, text="Session Start TC:", width=110, anchor="w")
     tc_label.pack(side=tk.LEFT)
     tc_entry = ctk.CTkEntry(tc_frame, width=130, justify="center")
     tc_entry.insert(0, "01:00:00:00")
-    tc_entry.pack(side=tk.LEFT, padx=(8, 20))
+    tc_entry.pack(side=tk.LEFT, padx=(5, 25))
     
     fps_label = ctk.CTkLabel(tc_frame, text="Frame Rate (FPS):")
     fps_label.pack(side=tk.LEFT)
     fps_option = ctk.CTkOptionMenu(
         tc_frame,
         values=["Auto (Detect)", "23.976", "24", "25", "29.97", "30", "50", "59.94", "60"],
-        width=130
+        width=140
     )
     fps_option.set("Auto (Detect)")
     fps_option.pack(side=tk.LEFT, padx=8)
     
-    btn_convert = ctk.CTkButton(step2_frame, text="Step 2: Generate MIDI & AAF", command=start_convert, fg_color="#2196F3", hover_color="#1976D2", font=("Arial", 14, "bold"), height=40)
-    btn_convert.pack(fill=tk.X, padx=10, pady=(5, 10))
-    
-    
-    
-    # ---- FULL RUN SECTION ----
+    # ---- 3. PRIMARY ACTION (FULL RUN) ----
     full_run_frame = ctk.CTkFrame(frame, fg_color="transparent")
-    full_run_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+    full_run_frame.pack(fill=tk.X, padx=10, pady=(0, 8))
     
-    btn_full_run = ctk.CTkButton(full_run_frame, text="Video to Markers (Full Run)", command=start_full_run, fg_color="#4CAF50", hover_color="#388E3C", font=("Arial", 16, "bold"), height=50)
+    btn_full_run = ctk.CTkButton(
+        full_run_frame,
+        text="Video to DAW Markers & AAF (Start)",
+        command=start_full_run,
+        fg_color="#4CAF50",
+        hover_color="#388E3C",
+        font=("Arial", 16, "bold"),
+        height=50
+    )
     btn_full_run.pack(fill=tk.X)
     
-    # ---- OUTPUT DIRECTORY SECTION ----
-    out_frame = ctk.CTkFrame(frame, corner_radius=8, fg_color="transparent")
-    out_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+    # ---- 4. COLLAPSIBLE ADVANCED / MANUAL STEPS (EDL & CSV) ----
+    adv_container = ctk.CTkFrame(frame, fg_color="transparent")
+    adv_container.pack(fill=tk.X, padx=10, pady=(0, 6))
     
-    ctk.CTkLabel(out_frame, text="Global Output Folder & Project Prefix (Optional)", font=("Arial", 12), text_color="gray").pack(anchor="w", padx=10, pady=(5, 0))
+    adv_expanded = tk.BooleanVar(value=False)
+    adv_panel = ctk.CTkFrame(adv_container, corner_radius=8)
     
-    out_file_frame = ctk.CTkFrame(out_frame, fg_color="transparent")
-    out_file_frame.pack(fill=tk.X, padx=10, pady=2)
+    def toggle_advanced():
+        if adv_expanded.get():
+            adv_panel.pack_forget()
+            adv_expanded.set(False)
+            adv_toggle_btn.configure(text="▶  Advanced: Import .EDL / .CSV or Run Steps Separately")
+        else:
+            adv_panel.pack(fill=tk.X, pady=(4, 0))
+            adv_expanded.set(True)
+            adv_toggle_btn.configure(text="▼  Advanced: Import .EDL / .CSV or Run Steps Separately")
     
-    proj_name_frame = ctk.CTkFrame(out_frame, fg_color="transparent")
-    proj_name_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
-    ctk.CTkLabel(proj_name_frame, text="Project / Output Prefix:", text_color="gray").pack(side=tk.LEFT)
-    proj_name_entry = ctk.CTkEntry(proj_name_frame, placeholder_text="Default: Auto from Video/CSV", fg_color="#2b2b2b", text_color="gray")
-    proj_name_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
+    adv_toggle_btn = ctk.CTkButton(
+        adv_container,
+        text="▶  Advanced: Import .EDL / .CSV or Run Steps Separately",
+        command=toggle_advanced,
+        fg_color="#2b2b2b",
+        hover_color="#3a3a3a",
+        text_color="#b0b0b0",
+        anchor="w",
+        font=("Arial", 12),
+        height=30
+    )
+    adv_toggle_btn.pack(fill=tk.X)
     
-    output_entry = ctk.CTkEntry(out_file_frame, fg_color="#2b2b2b", text_color="gray")
-    output_entry.insert(0, DEFAULT_OUT_DIR)
-    output_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+    csv_file_frame = ctk.CTkFrame(adv_panel, fg_color="transparent")
+    csv_file_frame.pack(fill=tk.X, padx=10, pady=(8, 4))
     
-    def select_output_dir():
-        dirpath = filedialog.askdirectory(title="Select Output Folder")
-        if dirpath:
-            output_entry.delete(0, tk.END)
-            output_entry.insert(0, dirpath)
-            log_message(f"Output folder set to: {dirpath}")
+    csv_entry = ctk.CTkEntry(csv_file_frame, placeholder_text="Select existing .CSV or NLE .EDL file...")
+    csv_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
     
-    out_browse_btn = ctk.CTkButton(out_file_frame, text="Browse...", command=select_output_dir, width=80, fg_color="#333333", hover_color="#444444", text_color="gray")
-    out_browse_btn.pack(side=tk.RIGHT)
+    csv_browse_btn = ctk.CTkButton(csv_file_frame, text="Browse CSV/EDL...", command=select_csv_file, width=130)
+    csv_browse_btn.pack(side=tk.RIGHT)
     
+    manual_btns_frame = ctk.CTkFrame(adv_panel, fg_color="transparent")
+    manual_btns_frame.pack(fill=tk.X, padx=10, pady=(4, 8))
     
-    # ---- CONSOLE ----
+    btn_detect = ctk.CTkButton(
+        manual_btns_frame,
+        text="Step 1 Only: Video → CSV",
+        command=lambda: start_detect(auto_step2=False),
+        fg_color="#3b4d61",
+        hover_color="#2c3e50",
+        font=("Arial", 12, "bold"),
+        height=34
+    )
+    btn_detect.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
     
+    btn_convert = ctk.CTkButton(
+        manual_btns_frame,
+        text="Step 2 Only: CSV/EDL → MIDI & AAF",
+        command=start_convert,
+        fg_color="#2196F3",
+        hover_color="#1976D2",
+        font=("Arial", 12, "bold"),
+        height=34
+    )
+    btn_convert.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=(5, 0))
+    
+    # ---- CONSOLE & FOOTER ----
     log_label = ctk.CTkLabel(frame, text="Console Output:", font=("Arial", 12, "bold"))
-    log_label.pack(anchor="w", padx=10, pady=(5, 0))
+    log_label.pack(anchor="w", padx=10, pady=(4, 0))
     
     import webbrowser
     
@@ -715,7 +808,6 @@ if __name__ == "__main__":
     footer = ctk.CTkLabel(frame, text="Developed by F.Utku Gercik | Co-Dev: Muhammed Kol | VCut2DAW v1.0 | License: CC BY-NC 4.0 | (i) Click for About", text_color="gray", font=("Arial", 10), cursor="hand2")
     footer.pack(side=tk.BOTTOM, pady=(10, 0))
     footer.bind("<Button-1>", lambda e: show_about())
-    
     
     log_area = ctk.CTkTextbox(frame, height=120, state="disabled", fg_color="#1e1e1e", text_color="#00ff00", font=("Consolas", 12))
     log_area.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
