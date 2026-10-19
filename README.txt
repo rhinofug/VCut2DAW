@@ -13,9 +13,10 @@ Support the project: https://buymeacoffee.com/rhinofug
 1. DAW AAF Strictness: Pro Tools 12.5+ aggressively rejects standard OTIO AAFs. VCut2DAW uses pyaaf2 
    to build compliant hierarchies so DAWs never throw an import error.
 2. The '1-Frame Drift' Fix: AI cut detection often places the cut on the first new frame, resulting 
-   in a 1-frame offset compared to traditional NLE edits. This tool automatically shifts all cuts 1 frame left.
+   in a 1-frame offset compared to traditional NLE edits. This tool converts detected cuts to 0-based frames (1 frame left). EDL cuts are not shifted.
 3. The '120 BPM' MIDI Sync Issue: DAWs tie MIDI marker timecodes to the session tempo map. This tool mathematically 
-   hardcodes the MIDI tick scale to assume 120 BPM ensuring timecodes land exactly correctly.
+   writes a Type 1 MIDI file at Pro Tools' native 960 PPQ with a fixed 120 BPM tempo (1920 ticks per second),
+   ensuring timecodes land exactly correctly.
 
 -------------------------------------------------------------------------------------------------
 

@@ -167,6 +167,15 @@ def run_step1_process(video_path, csv_out_dir, success_msg, expected_csv, auto_s
             sys.stderr = old_stderr
             sys.argv = old_argv
 
+        if step1_ok and not os.path.exists(expected_csv):
+            step1_ok = False
+            _auto_proceed_step2 = False
+            log_area.after(0, log_message, f"ERROR: Scene detection finished but no CSV was created: {expected_csv}")
+            log_area.after(0, lambda: messagebox.showerror("Error", "Scene detection did not produce a CSV file.\nSee the log for details."))
+        elif not step1_ok:
+            _auto_proceed_step2 = False
+            log_area.after(0, lambda: messagebox.showerror("Error", "Scene detection failed.\nSee the log for details."))
+
         if step1_ok:
             log_area.after(0, log_message, success_msg)
             if os.path.exists(expected_csv):

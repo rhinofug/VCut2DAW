@@ -11,6 +11,11 @@ VCut2DAW is an open-source video-to-DAW pipeline tool designed specifically for 
 ### Option 1: Download Pre-built App (Recommended)
 Go to the **[Releases](https://github.com/rhinofug/VCut2DAW/releases)** page and download the latest `.exe` (for Windows) or `.dmg` (for macOS).
 
+> 💻 **Which Mac DMG do I need?**
+> - **M1 / M2 / M3 / M4 Mac** → download `VCut2DAW_AppleSilicon.dmg`
+> - **Older Mac with an Intel chip** → download `VCut2DAW_Intel.dmg`
+> - **Not sure?** Click the Apple menu → **About This Mac** and look at "Chip" or "Processor". (The Intel DMG also runs on Apple Silicon through Rosetta, just slower.)
+
 > 🛑 **IMPORTANT macOS SECURITY NOTE:** 
 > Because this is a free open-source app, macOS Gatekeeper will automatically quarantine it when downloaded from the internet, which causes an *"App is damaged"* or *"Cannot be verified"* error. 
 > 
@@ -36,8 +41,8 @@ chmod +x compile_mac.sh
 
 ## Why This Exists? (The Technical Edge)
 - **DAW AAF Strictness (Pro Tools, Nuendo):** Pro Tools 12.5+ aggressively rejects standard OTIO AAFs. VCut2DAW uses `pyaaf2` to build compliant `SourceMob` and `MasterMob` hierarchies with valid `PCMDescriptor`s so DAWs (especially Pro Tools) never throw an import error.
-- **The "1-Frame Drift" Fix:** AI cut detection often places the cut on the first *new* frame, resulting in a 1-frame offset compared to traditional NLE edits. This tool automatically mathematically shifts all cuts 1 frame left and fills the timeline gap to ensure perfect frame sync with the picture department.
-- **The "120 BPM" MIDI Sync Issue:** DAWs (like Pro Tools) often force their session tempo (default 120 BPM) onto imported MIDI markers unless you overwrite the tempo map. This tool mathematically hardcodes the MIDI tick scale to assume 120 BPM (`ticks_per_beat = 12000`), ensuring 01:00:00:00 lands exactly at 1 hour, not 30 minutes!
+- **The "1-Frame Drift" Fix:** AI cut detection often places the cut on the first *new* frame, resulting in a 1-frame offset compared to traditional NLE edits. PySceneDetect CSVs number frames from 1, so this tool converts all detected cuts to 0-based frames (1 frame left) and fills the timeline gap to ensure perfect frame sync with the picture department. EDL cuts are already exact NLE frame numbers and are not shifted.
+- **The "120 BPM" MIDI Sync Issue:** DAWs (like Pro Tools) often force their session tempo (default 120 BPM) onto imported MIDI markers unless you overwrite the tempo map. This tool writes a Standard MIDI File (Type 1) at Pro Tools' native 960 PPQ with a fixed 120 BPM tempo (`ticks_per_beat = 960`, i.e. 1920 ticks per second), ensuring 01:00:00:00 lands exactly at 1 hour, not 30 minutes! Track 0 is a Conductor track (tempo, time signature, global markers) and Track 1 holds the track markers plus a short note at each cut.
 
 ## Features
 - **Video to Cuts:** Select an MP4/MOV and get a frame-accurate CSV.

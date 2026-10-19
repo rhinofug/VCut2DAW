@@ -1,5 +1,5 @@
-scenedetect
-opencv-python
+scenedetect==0.6.7
+opencv-python>=4.8,<5
 pyaaf2==1.4.0
 mido
 customtkinter
