@@ -41,14 +41,27 @@ chmod +x compile_mac.sh
 
 ## Why This Exists? (The Technical Edge)
 - **DAW AAF Strictness (Pro Tools, Nuendo):** Pro Tools 12.5+ aggressively rejects standard OTIO AAFs. VCut2DAW uses `pyaaf2` to build compliant `SourceMob` and `MasterMob` hierarchies with valid `PCMDescriptor`s so DAWs (especially Pro Tools) never throw an import error.
+- **Fractional Frame Rate & Sample-Accurate Sync (`23.976` / `29.97` / `59.94`):** Non-integer NTSC framerates leave fractional audio samples on every frame (e.g., `1601.6` samples/frame at 29.97 fps / 48 kHz). VCut2DAW uses exact broadcast rational ratios (`24000/1001`, `30000/1001`, `60000/1001`) and absolute sample/tick accumulation so cuts never drift even across 3-hour feature films.
 - **The "1-Frame Drift" Fix:** AI cut detection often places the cut on the first *new* frame, resulting in a 1-frame offset compared to traditional NLE edits. PySceneDetect CSVs number frames from 1, so this tool converts all detected cuts to 0-based frames (1 frame left) and fills the timeline gap to ensure perfect frame sync with the picture department. EDL cuts are already exact NLE frame numbers and are not shifted.
-- **The "120 BPM" MIDI Sync Issue:** DAWs (like Pro Tools) often force their session tempo (default 120 BPM) onto imported MIDI markers unless you overwrite the tempo map. This tool writes a Standard MIDI File (Type 1) at Pro Tools' native 960 PPQ with a fixed 120 BPM tempo (`ticks_per_beat = 960`, i.e. 1920 ticks per second), ensuring 01:00:00:00 lands exactly at 1 hour, not 30 minutes! Track 0 is a Conductor track (tempo, time signature, global markers) and Track 1 holds the track markers plus a short note at each cut.
+- **The "120 BPM" MIDI Sync Issue:** DAWs (like Pro Tools) often force their session tempo (default 120 BPM) onto imported MIDI markers unless you overwrite the tempo map. This tool writes a Standard MIDI File (Type 1) at Pro Tools' native 960 PPQ with a fixed 120 BPM tempo (`ticks_per_beat = 960`, i.e. 1920 ticks per second), ensuring `01:00:00:00` lands exactly at 1 hour, not 30 minutes! Track 0 is a Conductor track (tempo, time signature, global markers) and Track 1 holds the track markers plus a short note at each cut.
 
 ## Features
-- **Video to Cuts:** Select an MP4/MOV and get a frame-accurate CSV.
-- **EDL Support:** Got an EDL from the editor? Drop the `.edl` file directly into Step 2!
-- **Dummy AAF Generation:** Generates a Clip Track allowing you to use `Tab to Transient` to jump between scenes.
+- **One-Click Video to DAW Workflow:** Select an MP4/MOV/MKV/AVI video and get both frame-accurate MIDI Markers and a Pro Tools Dummy AAF in one click.
+- **Auto & Manual Frame Rate Detection:** Automatically detects video framerate (`23.976`, `24`, `25`, `29.97`, `30`, `50`, `59.94`, `60` FPS) or lets you override it manually for EDLs.
+- **EDL & CSV Support:** Got a CMX3600 `.edl` from the editor? Open the collapsible **Advanced** panel and convert `.edl` or `.csv` files directly!
+- **Dummy AAF Generation:** Generates a Clip Track allowing you to use `Tab to Transient` (or clip boundaries) to jump between scenes.
+- **Clean `VCut2DAW_Exports` Output Structure:** Automatically creates a `VCut2DAW_Exports` parent folder right next to your selected video (with `CSV/`, `MIDI/`, and `AAF/` subfolders).
 - **Session Start Timecode Offset:** Input your session start (e.g., `01:00:00:00`) and the files will spot perfectly without manual offset mapping.
+
+## 🖥️ System Requirements & DAW Compatibility
+
+| Platform / DAW | Supported Versions & Details |
+| :--- | :--- |
+| **Pro Tools (Studio / Ultimate / HD)** | **Pro Tools 10, 11, 12.5 through Pro Tools 2025.12+**<br>• **PT 2022.9 – 2025.12+:** Full support for Global Ruler Markers (up to 32,000), Track Markers (2023.6+), and Dummy AAF Clip Tracks.<br>• **PT 10 / 11 / 12.5 – 2022.7:** Full Dummy AAF Clip Track support (unlimited cuts) + MIDI Markers (up to Pro Tools' legacy 999 Memory Locations limit). |
+| **Pro Tools Intro / First** | MIDI Markers supported *(AAF import is disabled by Avid in free Intro/First editions)*. |
+| **Other DAWs** | **Nuendo, Cubase, Logic Pro, Reaper, Studio One, DaVinci Resolve (Fairlight)** via standard SMF Type 1 MIDI & AAF. |
+| **Windows** | **Windows 10 & Windows 11 (64-bit)**. |
+| **macOS** | **macOS 11 Big Sur through macOS 15 Sequoia+** (Native **Apple Silicon M1 / M2 / M3 / M4** `.dmg` and **Intel x64** `.dmg` available). |
 
 ## 💡 Important Pro Tools / DAW Tips (FAQ)
 

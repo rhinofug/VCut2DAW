@@ -1,4 +1,4 @@
-﻿# VCut2DAW (Open Source Conform Assistant)
+# VCut2DAW (Open Source Conform Assistant)
 
 VCut2DAW is an open-source video-to-DAW pipeline tool designed specifically for Sound Editors and Assistant Editors. 
 It automatically detects visual cuts from a video (or parses CMX3600 EDLs) and generates 100% compliant Dummy AAFs 
@@ -12,9 +12,12 @@ Support the project: https://buymeacoffee.com/rhinofug
 
 1. DAW AAF Strictness: Pro Tools 12.5+ aggressively rejects standard OTIO AAFs. VCut2DAW uses pyaaf2 
    to build compliant hierarchies so DAWs never throw an import error.
-2. The '1-Frame Drift' Fix: AI cut detection often places the cut on the first new frame, resulting 
+2. Fractional Frame Rate & Sample-Accurate Sync (23.976 / 29.97 / 59.94): Uses exact broadcast rational
+   ratios (24000/1001, 30000/1001, 60000/1001) and absolute sample/tick accumulation at 48 kHz so cuts
+   never drift across feature-length timelines.
+3. The '1-Frame Drift' Fix: AI cut detection often places the cut on the first new frame, resulting 
    in a 1-frame offset compared to traditional NLE edits. This tool converts detected cuts to 0-based frames (1 frame left). EDL cuts are not shifted.
-3. The '120 BPM' MIDI Sync Issue: DAWs tie MIDI marker timecodes to the session tempo map. This tool mathematically 
+4. The '120 BPM' MIDI Sync Issue: DAWs tie MIDI marker timecodes to the session tempo map. This tool mathematically 
    writes a Type 1 MIDI file at Pro Tools' native 960 PPQ with a fixed 120 BPM tempo (1920 ticks per second),
    ensuring timecodes land exactly correctly.
 
@@ -22,10 +25,24 @@ Support the project: https://buymeacoffee.com/rhinofug
 
 ## Features
 
-- Video to Cuts: Select an MP4/MOV and get a frame-accurate CSV.
-- EDL Support: Load a standard .edl file directly into Step 2!
+- One-Click Video to Cuts: Select an MP4/MOV/MKV/AVI and get frame-accurate CSV, MIDI Markers, and Dummy AAF.
+- Auto & Manual Frame Rate Support: Automatically detects 23.976, 24, 25, 29.97, 30, 50, 59.94, 60 FPS or allows manual override.
+- EDL Support: Load a standard CMX3600 .edl file directly via the collapsible Advanced panel!
 - Dummy AAF Generation: Generates a Clip Track allowing you to use 'Tab to Transient' to jump between scenes.
+- Clean Output Structure: Automatically creates a VCut2DAW_Exports parent folder right next to your video.
 - Session Start Timecode Offset: Input your session start (e.g., 01:00:00:00) and the files will spot perfectly.
+
+-------------------------------------------------------------------------------------------------
+
+## System Requirements & DAW Compatibility
+
+- Pro Tools: Pro Tools 10, 11, 12.5 through Pro Tools 2025.12+ (Studio / Ultimate / HD).
+  * PT 2022.9 - 2025.12+: Full support for Global Ruler Markers (up to 32k), Track Markers, and Dummy AAF.
+  * PT 10 / 11 / 12.5 - 2022.7: Full Dummy AAF Clip Track support (unlimited cuts) + MIDI Markers (up to 999 Memory Locations).
+- Pro Tools Intro / First: MIDI Markers supported (AAF import is disabled by Avid in free editions).
+- Other DAWs: Nuendo, Cubase, Logic Pro, Reaper, Studio One, DaVinci Resolve (Fairlight).
+- Windows: Windows 10 & Windows 11 (64-bit).
+- macOS: macOS 11 Big Sur through macOS 15 Sequoia+ (Apple Silicon M1/M2/M3/M4 & Intel x64).
 
 -------------------------------------------------------------------------------------------------
 
@@ -61,6 +78,8 @@ to create empty clips on your timeline so you can use the 'Tab to Transient' sho
 ## Author & License
 
 Developed by F.Utku Gercik
+Co-Dev: Muhammed Kol (Muhammed Tayyib Kol) - https://github.com/muhammedtkol-alt
+Thanks to early testers: Çağlar "Çakan" Çakmak, Can Doğduaslan, Ömür Öztürk, Çağdaş Yarman
 Email: utkugercik@gmail.com
 GitHub: github.com/rhinofug/VCut2DAW
 
@@ -78,4 +97,3 @@ done by the open-source community. Special thanks to the creators of the core en
 - CustomTkinter (by TomSchimansky): For providing the sleek, modern dark-mode GUI.
 
 Thank you for keeping open-source post-production alive!
-
